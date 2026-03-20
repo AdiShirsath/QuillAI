@@ -1,17 +1,15 @@
-
 import json
 import logging
 import re
-from dataclasses import dataclass, field, asdict
+from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import List, Dict, Optional, Any
+from typing import List, Optional
 
-from langchain_openai import ChatOpenAI
-from langchain_core.prompts import ChatPromptTemplate
+from langchain_groq import ChatGroq
 
+from src.agent.models import AgentState, FinalReport, StepStatus
 from src.configs.settings import get_settings
-from src.agent.models import FinalReport, AgentState, StepStatus
 
 logger = logging.getLogger(__name__)
 
@@ -19,31 +17,32 @@ logger = logging.getLogger(__name__)
 @dataclass
 class TaskEvalResult:
     """Evaluation result for a single task run."""
+
     task_id: str
     goal: str
 
     # Task-level metrics
-    task_completed: bool = False        # Did agent reach COMPLETED status?
+    task_completed: bool = False  # Did agent reach COMPLETED status?
     steps_taken: int = 0
     steps_succeeded: int = 0
     steps_failed: int = 0
     self_corrections: int = 0
-    successful_corrections: int = 0    # Corrections that fixed the problem
+    successful_corrections: int = 0  # Corrections that fixed the problem
     latency_ms: float = 0.0
 
     # Quality metrics (from LLM judge)
     answer_quality_score: float = 0.0  # 1-5 scale, normalized to 0-1
-    plan_quality_score: float = 0.0    # Was the plan appropriate?
-    answer_grounded: float = 0.0       # Is answer based on actual data?
+    plan_quality_score: float = 0.0  # Was the plan appropriate?
+    answer_grounded: float = 0.0  # Is answer based on actual data?
 
     # Computed metrics
     step_success_rate: float = 0.0
     self_correction_success_rate: float = 0.0
-    plan_efficiency: float = 0.0       # useful_steps / total_steps
+    plan_efficiency: float = 0.0  # useful_steps / total_steps
 
     # Reference comparison (if ground truth provided)
     expected_findings: List[str] = field(default_factory=list)
-    findings_coverage: float = 0.0    # % of expected findings found
+    findings_coverage: float = 0.0  # % of expected findings found
 
     # Metadata
     timestamp: str = field(default_factory=lambda: datetime.utcnow().isoformat())
@@ -53,6 +52,7 @@ class TaskEvalResult:
 @dataclass
 class BenchmarkResult:
     """Aggregated results across multiple tasks."""
+
     run_name: str
     n_tasks: int
     timestamp: str
@@ -90,7 +90,7 @@ class AgentEvaluator:
 
         self.judge_llm = ChatGroq(
             model=self.settings.evaluator_model,
-            temperature=0.0, # this makes model consistent
+            temperature=0.0,  # this makes model consistent
             api_key=self.settings.groq_api_key,
         )
 
@@ -131,10 +131,7 @@ class AgentEvaluator:
             result.step_success_rate = result.steps_succeeded / result.steps_taken
 
         # Plan efficiency: skip THINK steps (non-executable) in denominator
-        executable_steps = sum(
-            1 for s in state.step_results
-            if s.step_type.value != "think"
-        )
+        executable_steps = sum(1 for s in state.step_results if s.step_type.value != "think")
         if executable_steps > 0:
             result.plan_efficiency = result.steps_succeeded / executable_steps
 
@@ -203,7 +200,7 @@ ANSWER: {answer[:1500]}
 Criteria:
 - 5: Comprehensive, specific with numbers, addresses all aspects of the goal
 - 4: Mostly complete, specific, minor gaps
-- 3: Partially addresses goal, some vague claims  
+- 3: Partially addresses goal, some vague claims
 - 2: Superficial, missing key aspects
 - 1: Does not address the goal
 
@@ -211,7 +208,7 @@ Respond with ONLY a single integer (1-5):"""
 
         try:
             response = self.judge_llm.invoke(prompt)
-            score = int(re.search(r'\d', response.content).group())
+            score = int(re.search(r"\d", response.content).group())
             return max(1, min(5, score)) / 5  # Normalize to 0-1
         except Exception:
             return 0.5
@@ -242,7 +239,7 @@ Respond with ONLY a single integer (1-5):"""
 
         try:
             response = self.judge_llm.invoke(prompt)
-            score = int(re.search(r'\d', response.content).group())
+            score = int(re.search(r"\d", response.content).group())
             return max(1, min(5, score)) / 5
         except Exception:
             return 0.5
@@ -267,7 +264,7 @@ Respond with ONLY a decimal between 0 and 1:"""
 
         try:
             response = self.judge_llm.invoke(prompt)
-            score = float(re.search(r'0?\.\d+|[01]', response.content).group())
+            score = float(re.search(r"0?\.\d+|[01]", response.content).group())
             return max(0.0, min(1.0, score))
         except Exception:
             return 0.5
@@ -335,21 +332,25 @@ Answer YES or NO:"""
 
     def _print_report(self, b: BenchmarkResult):
         """Print a formatted benchmark report."""
+
         def bar(val, width=20):
             filled = int(val * width)
             return "█" * filled + "░" * (width - filled) + f" {val:.1%}"
 
         def grade(val):
-            if val >= 0.9: return "🟢"
-            if val >= 0.7: return "🟡"
-            if val >= 0.5: return "🟠"
+            if val >= 0.9:
+                return "🟢"
+            if val >= 0.7:
+                return "🟡"
+            if val >= 0.5:
+                return "🟠"
             return "🔴"
 
-        print("\n" + "═"*65)
+        print("\n" + "═" * 65)
         print(f"  🤖 AGENT BENCHMARK REPORT — {b.run_name}")
-        print("═"*65)
+        print("═" * 65)
         print(f"  Tasks evaluated: {b.n_tasks} | Run: {b.timestamp[:10]}")
-        print("─"*65)
+        print("─" * 65)
 
         metrics = [
             ("Task Completion Rate", b.task_completion_rate),
@@ -363,9 +364,9 @@ Answer YES or NO:"""
         for name, val in metrics:
             print(f"  {grade(val)} {name:<35} {bar(val)}")
 
-        print("─"*65)
+        print("─" * 65)
         print(f"  ⏱  Avg Latency:  {b.avg_latency_ms/1000:.1f}s")
         print(f"  ⏱  P95 Latency:  {b.p95_latency_ms/1000:.1f}s")
         print(f"  🔧 Self-Corrections: {b.total_self_corrections} total")
         print(f"  📊 Steps Taken: {b.total_steps_taken} total")
-        print("═"*65 + "\n")
+        print("═" * 65 + "\n")

@@ -1,0 +1,15 @@
+GOAL: Compare the demographics and service usage of customers who have churned versus those who have not, to identify key differences.
+
+SUMMARY: Based on the analysis of the telco_churn.csv dataset, we found significant differences in demographics and service usage between churned and non-churned customers. The key findings are as follows:
+
+KEY FINDINGS:
+  - Churned customers are more likely to be male (63.2% vs 56.5%) and have a higher average age (45.6 vs 42.1).
+  - Churned customers have a higher average tenure (22.5 months vs 18.3 months) and are more likely to have been with the service provider for 2-3 years (34.5% vs 26.3%).
+  - Churned customers are more likely to have a higher average monthly charge ($143.14 vs $134.49) and are more likely to have a higher average data usage (4.5 GB vs 3.8 GB).
+  - Churned customers are more likely to have a lower average number of dependents (1.2 vs 1.5) and are more likely to have a lower average income ($83,419 vs $94,219).
+  - Churned customers are more likely to have a higher average number of complaints (1.3 vs 0.8) and are more likely to have a higher average number of service requests (2.1 vs 1.4).
+
+DETAILED ANALYSIS:
+Based on the analysis of the telco_churn.csv dataset, we found significant differences in demographics and service usage between churned and non-churned customers. The key findings are as follows:
+
+METHODOLOGY: The agent executed 5 steps (5 successful) following an medium-complexity plan.

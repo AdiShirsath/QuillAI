@@ -29,8 +29,7 @@ def _serve(filename: str) -> HTMLResponse:
     if path.exists():
         return HTMLResponse(path.read_text(encoding="utf-8"))
     return HTMLResponse(
-        f"<h2>404 — {filename} not found.</h2>"
-        f"<p>Place it at <code>src/api/static/{filename}</code></p>",
+        f"<h2>404 — {filename} not found.</h2>" f"<p>Place it at <code>src/api/static/{filename}</code></p>",
         status_code=404,
     )
 
