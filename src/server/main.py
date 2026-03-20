@@ -18,18 +18,35 @@ import uvicorn
 from src.configs.settings import get_settings
 from src.agent.agent import DataAnalysisAgent
 from src.tools.agent_evaluator import AgentEvaluator
+from src.tools.redis_client import (                                  # ← new import
+    get_redis,
+    task_set, task_get, task_update, task_count,
+    file_set, file_get,
+)
 
+from src.server.ui_pages import ui_router          # ← all UI page routes
+
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s | %(levelname)s | %(name)s | %(message)s"
+)
 logger = logging.getLogger(__name__)
 settings = get_settings()
 
-# In-memory task store (use Redis in production)
-_tasks: Dict[str, Dict] = {}
+_redis = None
 _agent: Optional[DataAnalysisAgent] = None
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global _agent
+    global _agent, _redis
+    _redis = get_redis(
+        host=settings.redis_host,
+        port=settings.redis_port,
+        db=settings.redis_db,
+        password=getattr(settings, "redis_password", None),
+    )
     logger.info("🤖 Initializing Autonomous Data Analysis Agent...")
     _agent = DataAnalysisAgent()
     logger.info("✅ Agent ready")
@@ -48,8 +65,10 @@ app = FastAPI(
 
     Connect via WebSocket to see the agent think in real-time.
     """,
-    version="2.0.0",
+    version="1.0.0",
     lifespan=lifespan,
+    docs_url=None,
+    redoc_url="/redoc",
 )
 
 
@@ -60,6 +79,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+# ui pages to make front end/, /docs, /dashboard, /ws-test
+
+app.include_router(ui_router)
 
 
 
@@ -83,9 +105,6 @@ class EvalRequest(BaseModel):
     tasks: List[Dict[str, Any]] = Field(..., description="List of {goal, file_key, expected_findings}")
     run_name: str = Field("api_eval", description="Name for this eval run")
 
-
-# ─── FILE UPLOAD STORE ────────────────────────────────────────────────────────
-_uploaded_files: Dict[str, str] = {}  # file_key -> temp_path
 
 
 # ─── WEBSOCKET MANAGER ────────────────────────────────────────────────────────
@@ -119,13 +138,21 @@ manager = ConnectionManager()
 
 @app.get("/health")
 async def health():
+    redis_status = "unavailable"
+    if _redis:
+        try:
+            _redis.ping()
+            redis_status = "healthy"
+        except Exception:
+            redis_status = "error"
+
     return {
         "status": "healthy",
         "agent_ready": _agent is not None,
+        "redis": redis_status,
         "active_connections": len(manager.active),
-        "tasks_in_memory": len(_tasks),
+        "tasks_in_memory": task_count(_redis),
     }
-
 
 @app.post("/upload")
 async def upload_file(file: UploadFile = File(...)):
@@ -143,7 +170,7 @@ async def upload_file(file: UploadFile = File(...)):
     tmp.flush()
 
     file_key = str(uuid.uuid4())[:8]
-    _uploaded_files[file_key] = tmp.name
+    file_set(_redis, file_key, tmp.name, ttl=3600)
 
     # Quick preview
     try:
@@ -180,14 +207,14 @@ async def start_analysis(request: AnalyzeRequest):
         raise HTTPException(503, "Agent not initialized")
 
     task_id = str(uuid.uuid4())[:8]
-    _tasks[task_id] = {"status": "queued", "goal": request.goal}
+    task_set(_redis, task_id, {"status": "queued", "goal": request.goal})
 
     # Resolve file path
     file_path = None
     df = None
 
     if request.file_key:
-        file_path = _uploaded_files.get(request.file_key)
+        file_path = file_get(_redis, request.file_key)
         if not file_path:
             raise HTTPException(404, f"File key '{request.file_key}' not found. Upload file first.")
 
@@ -215,7 +242,7 @@ async def _run_agent_task(
     df: Optional[pd.DataFrame],
 ):
     """Background coroutine that runs the agent and broadcasts events."""
-    _tasks[task_id]["status"] = "running"
+    task_update(_redis, task_id, {"status": "running"})
 
     try:
         async for event in _agent.run_streaming(
@@ -225,21 +252,20 @@ async def _run_agent_task(
             task_id=task_id,
         ):
             event_dict = event.to_dict()
-            _tasks[task_id]["last_event"] = event_dict
+            task_update(_redis, task_id, {"status": "completed", "result": event.data})
 
             # Send to WebSocket if connected
             await manager.send(task_id, event_dict)
 
             if event.event_type == "complete":
-                _tasks[task_id]["status"] = "completed"
-                _tasks[task_id]["result"] = event.data
+                task_update(_redis, task_id, {"status": "completed", "result": event.data})
             elif event.event_type == "error":
-                _tasks[task_id]["status"] = "error"
-                _tasks[task_id]["error"] = event.data
+                task_update(_redis, task_id, {"status": "error", "error": event.data})
 
     except Exception as e:
-        _tasks[task_id]["status"] = "error"
-        _tasks[task_id]["error"] = str(e)
+
+        task_update(_redis, task_id, {"status": "error", "error": str(e)})
+
         await manager.send(task_id, {"event_type": "error", "data": {"message": str(e)}})
 
 
@@ -255,7 +281,7 @@ async def websocket_endpoint(websocket: WebSocket, task_id: str):
 
     try:
         # If task already done, send final result immediately
-        task = _tasks.get(task_id, {})
+        task = task_get(_redis, task_id) or {}
         if task.get("status") == "completed" and "result" in task:
             await websocket.send_json({
                 "event_type": "complete",
@@ -276,7 +302,8 @@ async def websocket_endpoint(websocket: WebSocket, task_id: str):
                 break
 
             # Check if task finished
-            if _tasks.get(task_id, {}).get("status") in ("completed", "error"):
+            current = task_get(_redis, task_id) or {}
+            if current.get("status") in ("completed", "error"):
                 break
 
     finally:
@@ -296,7 +323,7 @@ async def analyze_sync(request: AnalyzeRequest):
     df = None
 
     if request.file_key:
-        file_path = _uploaded_files.get(request.file_key)
+        file_path = file_get(_redis, request.file_key)
     elif request.sample_data:
         import io
         df = pd.read_csv(io.StringIO(request.sample_data))
@@ -326,7 +353,7 @@ async def analyze_sync(request: AnalyzeRequest):
 @app.get("/task/{task_id}")
 async def get_task(task_id: str):
     """Get the current status and result of a task."""
-    task = _tasks.get(task_id)
+    task = task_get(_redis, task_id)
     if not task:
         raise HTTPException(404, f"Task {task_id} not found")
     return task
@@ -354,9 +381,5 @@ async def memory_stats():
 
 
 if __name__ == "__main__":
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s | %(levelname)s | %(name)s | %(message)s"
-    )
     uvicorn.run("src.api.main:app", host=settings.api_host, port=settings.api_port, reload=True)
 

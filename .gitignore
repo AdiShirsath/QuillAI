@@ -3,3 +3,4 @@ data*
 **/.idea
 **/.ipynb_checkpoints
 **/dl_p1_envadd
+.DS_Store

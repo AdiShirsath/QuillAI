@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>QuillAI — WebSocket Tester</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@700;800&display=swap" rel="stylesheet"/>
+<style>
+  :root {
+    --bg: #0d0d12;
+    --surface: #13131a;
+    --border: #252530;
+    --accent: #06b6d4;
+    --green: #10b981;
+    --red: #ef4444;
+    --yellow: #f59e0b;
+    --text: #e2e8f0;
+    --muted: #475569;
+    --mono: 'Space Mono', monospace;
+    --head: 'Syne', sans-serif;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--mono);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Scanline overlay */
+  body::after {
+    content:'';
+    position:fixed;
+    inset:0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0,0,0,0.08) 2px,
+      rgba(0,0,0,0.08) 4px
+    );
+    pointer-events:none;
+    z-index:999;
+  }
+
+  .topbar {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 14px 24px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .logo {
+    font-family: var(--head);
+    font-weight: 800;
+    font-size: 1.1rem;
+    color: var(--accent);
+    letter-spacing: -0.02em;
+  }
+
+  .badge {
+    font-size: 0.62rem;
+    padding: 3px 8px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    letter-spacing: 0.06em;
+  }
+
+  .main {
+    display: grid;
+    grid-template-columns: 320px 1fr;
+    flex: 1;
+    gap: 0;
+  }
+
+  .sidebar {
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+  }
+
+  .section-label {
+    font-size: 0.62rem;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .section-label::after {
+    content:'';
+    flex:1;
+    height:1px;
+    background: var(--border);
+  }
+
+  input, textarea {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 0.78rem;
+    padding: 8px 12px;
+    border-radius: 6px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  input:focus, textarea:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px rgba(6,182,212,0.12);
+  }
+  textarea { min-height: 80px; resize: vertical; }
+
+  .btn-group { display: flex; flex-direction: column; gap: 8px; }
+
+  button {
+    padding: 9px 14px;
+    border-radius: 6px;
+    font-family: var(--mono);
+    font-size: 0.75rem;
+    font-weight: 700;
+    cursor: pointer;
+    border: 1px solid var(--border);
+    transition: all 0.15s;
+    text-align: left;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .btn-connect  { background: rgba(6,182,212,0.1);  color: var(--accent); border-color: rgba(6,182,212,0.3); }
+  .btn-connect:hover  { background: rgba(6,182,212,0.2); }
+  .btn-disconnect { background: rgba(239,68,68,0.1); color: var(--red); border-color: rgba(239,68,68,0.3); }
+  .btn-disconnect:hover { background: rgba(239,68,68,0.2); }
+  .btn-send     { background: rgba(16,185,129,0.1);  color: var(--green); border-color: rgba(16,185,129,0.3); }
+  .btn-send:hover     { background: rgba(16,185,129,0.2); }
+  .btn-clear    { background: transparent; color: var(--muted); }
+  .btn-clear:hover    { color: var(--text); }
+
+  button:disabled { opacity: 0.35; cursor: not-allowed; }
+
+  /* Status indicator */
+  .status-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 0.72rem;
+  }
+
+  .led {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--muted);
+    flex-shrink: 0;
+    transition: all 0.3s;
+  }
+  .led.connected    { background: var(--green); box-shadow: 0 0 10px var(--green); animation: blink 2s infinite; }
+  .led.connecting   { background: var(--yellow); box-shadow: 0 0 10px var(--yellow); animation: blink 0.5s infinite; }
+  .led.disconnected { background: var(--red); box-shadow: 0 0 6px var(--red); }
+
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+  /* Quick presets */
+  .preset {
+    padding: 6px 10px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    font-size: 0.68rem;
+    color: var(--muted);
+    cursor: pointer;
+    transition: all 0.15s;
+    text-align: left;
+    width: 100%;
+    font-family: var(--mono);
+  }
+  .preset:hover { color: var(--text); border-color: var(--accent); background: rgba(6,182,212,0.04); }
+
+  /* Terminal */
+  .terminal-wrap {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    background: #080810;
+  }
+
+  .terminal-header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 10px 18px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .terminal-dots { display:flex; gap:6px; }
+  .tdot { width:10px; height:10px; border-radius:50%; }
+  .tdot-r { background: #ff5f57; }
+  .tdot-y { background: #febc2e; }
+  .tdot-g { background: #28c840; }
+
+  .terminal-title {
+    font-size: 0.7rem;
+    color: var(--muted);
+    letter-spacing: 0.06em;
+  }
+
+  .terminal-stats {
+    display: flex;
+    gap: 14px;
+    font-size: 0.65rem;
+    color: var(--muted);
+  }
+
+  .terminal-stats span { color: var(--accent); }
+
+  .terminal {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 0.78rem;
+    line-height: 1.6;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+  }
+
+  .terminal::-webkit-scrollbar { width: 4px; }
+  .terminal::-webkit-scrollbar-track { background: transparent; }
+  .terminal::-webkit-scrollbar-thumb { background: var(--border); }
+
+  .log-line {
+    display: flex;
+    gap: 10px;
+    animation: fade-in 0.15s ease;
+  }
+
+  @keyframes fade-in { from{opacity:0} to{opacity:1} }
+
+  .log-ts { color: #1e3a5f; flex-shrink:0; user-select:none; }
+
+  .log-dir {
+    flex-shrink: 0;
+    font-weight: 700;
+    width: 26px;
+  }
+
+  .dir-in  { color: var(--accent); }
+  .dir-out { color: var(--green); }
+  .dir-sys { color: var(--yellow); }
+  .dir-err { color: var(--red); }
+
+  .log-body { flex: 1; word-break: break-all; }
+
+  .log-line.in   .log-body { color: #94d8e8; }
+  .log-line.out  .log-body { color: #6ee7b7; }
+  .log-line.sys  .log-body { color: var(--muted); font-style: italic; }
+  .log-line.err  .log-body { color: var(--red); }
+
+  .log-type {
+    font-size: 0.6rem;
+    padding: 1px 5px;
+    border-radius: 3px;
+    margin-right: 6px;
+    flex-shrink: 0;
+    font-weight: 700;
+  }
+
+  .type-plan     { background:rgba(6,182,212,0.15);  color:var(--accent); }
+  .type-execute  { background:rgba(124,58,237,0.15); color:#a78bfa; }
+  .type-complete { background:rgba(16,185,129,0.15); color:var(--green); }
+  .type-error    { background:rgba(239,68,68,0.15);  color:var(--red); }
+  .type-correct  { background:rgba(245,158,11,0.15); color:var(--yellow); }
+  .type-heartbeat{ background:rgba(71,85,105,0.15);  color:var(--muted); }
+
+  /* Send bar */
+  .send-bar {
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    padding: 12px 18px;
+    display: flex;
+    gap: 10px;
+    align-items: center;
+  }
+
+  .send-bar span {
+    color: var(--green);
+    font-size: 0.85rem;
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+
+  .send-bar input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    padding: 4px 0;
+    font-size: 0.8rem;
+    box-shadow: none;
+  }
+
+  .send-bar input:focus { box-shadow: none; border: none; }
+
+  .send-bar button {
+    padding: 6px 14px;
+    border-radius: 4px;
+    font-size: 0.72rem;
+    background: rgba(16,185,129,0.15);
+    color: var(--green);
+    border-color: rgba(16,185,129,0.3);
+  }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="logo">QuillAI</div>
+  <div class="badge">WS TESTER</div>
+  <div class="badge" id="msg-counter">0 messages</div>
+</div>
+
+<div class="main">
+
+  <!-- SIDEBAR -->
+  <div class="sidebar">
+
+    <div>
+      <div class="section-label">Connection</div>
+      <div style="display:flex;flex-direction:column;gap:8px;">
+        <input id="ws-url" placeholder="ws://localhost:8000/ws/{task_id}" value="ws://localhost:8000/ws/"/>
+        <div class="status-row">
+          <div class="led" id="led"></div>
+          <span id="conn-status">disconnected</span>
+          <span id="conn-time" style="margin-left:auto;color:var(--muted);font-size:0.65rem;"></span>
+        </div>
+        <div class="btn-group">
+          <button class="btn-connect" id="btn-connect" onclick="doConnect()">⚡ Connect</button>
+          <button class="btn-disconnect" id="btn-disconnect" onclick="doDisconnect()" disabled>✕ Disconnect</button>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="section-label">Quick Presets</div>
+      <div style="display:flex;flex-direction:column;gap:5px;">
+        <button class="preset" onclick="sendPreset('ping')">💓 Send ping</button>
+        <button class="preset" onclick="sendPreset('status')">📋 Ask status</button>
+        <button class="preset" onclick="sendPreset('custom')">✏️ Custom JSON</button>
+      </div>
+    </div>
+
+    <div>
+      <div class="section-label">Manual Send</div>
+      <textarea id="manual-msg" placeholder='{"type":"ping"}'></textarea>
+      <button class="btn-send" style="margin-top:8px;width:100%;" onclick="sendManual()">↑ Send Message</button>
+    </div>
+
+    <div>
+      <div class="section-label">Options</div>
+      <div style="display:flex;flex-direction:column;gap:6px;font-size:0.72rem;color:var(--muted);">
+        <label style="display:flex;gap:8px;align-items:center;cursor:pointer;">
+          <input type="checkbox" id="opt-pretty" checked style="width:auto;"> Pretty-print JSON
+        </label>
+        <label style="display:flex;gap:8px;align-items:center;cursor:pointer;">
+          <input type="checkbox" id="opt-ts" checked style="width:auto;"> Show timestamps
+        </label>
+        <label style="display:flex;gap:8px;align-items:center;cursor:pointer;">
+          <input type="checkbox" id="opt-hb" style="width:auto;"> Hide heartbeats
+        </label>
+      </div>
+    </div>
+
+    <button class="btn-clear" onclick="clearTerminal()" style="width:100%;justify-content:center;">⊘ Clear terminal</button>
+
+  </div>
+
+  <!-- TERMINAL -->
+  <div class="terminal-wrap">
+    <div class="terminal-header">
+      <div class="terminal-dots">
+        <div class="tdot tdot-r"></div>
+        <div class="tdot tdot-y"></div>
+        <div class="tdot tdot-g"></div>
+      </div>
+      <div class="terminal-title">ws:// — live event stream</div>
+      <div class="terminal-stats">
+        RX <span id="stat-rx">0</span> &nbsp; TX <span id="stat-tx">0</span> &nbsp; ERR <span id="stat-err">0</span>
+      </div>
+    </div>
+
+    <div class="terminal" id="terminal"></div>
+
+    <div class="send-bar">
+      <span>›</span>
+      <input type="text" id="inline-send" placeholder="type a message and press Enter..." onkeydown="if(event.key==='Enter') sendInline()"/>
+      <button onclick="sendInline()">SEND</button>
+    </div>
+  </div>
+
+</div>
+
+<script>
+let socket = null;
+let rxCount = 0, txCount = 0, errCount = 0, msgCount = 0;
+let connStartTime = null;
+let timerInterval = null;
+
+function doConnect() {
+  const url = document.getElementById('ws-url').value.trim();
+  if (!url) return;
+
+  setLed('connecting', 'connecting...');
+  log('sys', `Connecting to ${url}`);
+
+  try {
+    socket = new WebSocket(url);
+  } catch(e) {
+    log('err', `Failed to create WebSocket: ${e.message}`);
+    setLed('disconnected', 'disconnected');
+    return;
+  }
+
+  socket.onopen = () => {
+    setLed('connected', 'connected');
+    connStartTime = Date.now();
+    startTimer();
+    log('sys', `✓ Connected to ${url}`);
+    document.getElementById('btn-connect').disabled = true;
+    document.getElementById('btn-disconnect').disabled = false;
+  };
+
+  socket.onmessage = (e) => {
+    rxCount++;
+    msgCount++;
+    document.getElementById('stat-rx').textContent = rxCount;
+    document.getElementById('msg-counter').textContent = `${msgCount} messages`;
+
+    const hideHb = document.getElementById('opt-hb').checked;
+
+    try {
+      const data = JSON.parse(e.data);
+      if (hideHb && data.event_type === 'heartbeat') return;
+
+      const pretty = document.getElementById('opt-pretty').checked;
+      const body = pretty ? JSON.stringify(data, null, 2) : e.data;
+      const typeTag = data.event_type
+        ? `<span class="log-type type-${data.event_type}">${data.event_type}</span>`
+        : '';
+      log('in', typeTag + escHtml(body));
+    } catch {
+      log('in', escHtml(e.data));
+    }
+  };
+
+  socket.onerror = () => {
+    errCount++;
+    document.getElementById('stat-err').textContent = errCount;
+    log('err', 'WebSocket error');
+    setLed('disconnected', 'error');
+  };
+
+  socket.onclose = (e) => {
+    setLed('disconnected', 'disconnected');
+    stopTimer();
+    log('sys', `Connection closed (code: ${e.code})`);
+    document.getElementById('btn-connect').disabled = false;
+    document.getElementById('btn-disconnect').disabled = true;
+  };
+}
+
+function doDisconnect() {
+  if (socket) { socket.close(); socket = null; }
+}
+
+function sendRaw(msg) {
+  if (!socket || socket.readyState !== WebSocket.OPEN) {
+    log('err', 'Not connected'); return;
+  }
+  socket.send(msg);
+  txCount++;
+  msgCount++;
+  document.getElementById('stat-tx').textContent = txCount;
+  document.getElementById('msg-counter').textContent = `${msgCount} messages`;
+
+  const pretty = document.getElementById('opt-pretty').checked;
+  try {
+    const parsed = JSON.parse(msg);
+    log('out', escHtml(pretty ? JSON.stringify(parsed, null, 2) : msg));
+  } catch {
+    log('out', escHtml(msg));
+  }
+}
+
+function sendManual() {
+  const msg = document.getElementById('manual-msg').value.trim();
+  if (msg) sendRaw(msg);
+}
+
+function sendInline() {
+  const inp = document.getElementById('inline-send');
+  const msg = inp.value.trim();
+  if (msg) { sendRaw(msg); inp.value = ''; }
+}
+
+function sendPreset(p) {
+  const presets = {
+    ping: 'ping',
+    status: JSON.stringify({type:'status'}),
+    custom: JSON.stringify({type:'custom',data:'hello'}),
+  };
+  const msg = presets[p];
+  document.getElementById('manual-msg').value = msg;
+  sendRaw(msg);
+}
+
+function log(dir, html) {
+  const terminal = document.getElementById('terminal');
+  const line = document.createElement('div');
+  line.className = `log-line ${dir}`;
+
+  const showTs = document.getElementById('opt-ts').checked;
+  const ts = showTs
+    ? `<span class="log-ts">${new Date().toISOString().slice(11,23)}</span>`
+    : '';
+
+  const arrow = {
+    in:  '<span class="log-dir dir-in">←</span>',
+    out: '<span class="log-dir dir-out">→</span>',
+    sys: '<span class="log-dir dir-sys">◆</span>',
+    err: '<span class="log-dir dir-err">✕</span>',
+  }[dir] || '';
+
+  line.innerHTML = `${ts}${arrow}<span class="log-body">${html}</span>`;
+  terminal.appendChild(line);
+  terminal.scrollTop = terminal.scrollHeight;
+}
+
+function clearTerminal() {
+  document.getElementById('terminal').innerHTML = '';
+  rxCount = txCount = errCount = 0;
+  document.getElementById('stat-rx').textContent = '0';
+  document.getElementById('stat-tx').textContent = '0';
+  document.getElementById('stat-err').textContent = '0';
+}
+
+function setLed(state, text) {
+  document.getElementById('led').className = `led ${state}`;
+  document.getElementById('conn-status').textContent = text;
+}
+
+function startTimer() {
+  timerInterval = setInterval(() => {
+    if (!connStartTime) return;
+    const secs = Math.floor((Date.now() - connStartTime) / 1000);
+    const m = String(Math.floor(secs/60)).padStart(2,'0');
+    const s = String(secs % 60).padStart(2,'0');
+    document.getElementById('conn-time').textContent = `${m}:${s}`;
+  }, 1000);
+}
+
+function stopTimer() {
+  clearInterval(timerInterval);
+  document.getElementById('conn-time').textContent = '';
+}
+
+function escHtml(str) {
+  return str
+    .replace(/&/g,'&amp;')
+    .replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;')
+    .replace(/\n/g,'<br>')
+    .replace(/ {2}/g,'&nbsp;&nbsp;');
+}
+
+log('sys', 'QuillAI WebSocket Tester ready — enter a URL and connect');
+</script>
+</body>
+</html>

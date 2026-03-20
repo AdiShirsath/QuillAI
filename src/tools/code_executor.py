@@ -143,8 +143,7 @@ class CodeExecutor:
         t0 = time.time()
 
         # Static validation
-        print("Code in sexecutors _code====")
-        print(code)
+
         is_safe, reason = self.validate_code(code)
         if not is_safe:
             return ExecutionResult(
