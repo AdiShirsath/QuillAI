@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>QuillAI — API Docs</title>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" type="text/css" href="https://unpkg.com/swagger-ui-dist@5/swagger-ui.css">
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@700;800&display=swap" rel="stylesheet"/>
+  <style>
+    :root {
+      --bg: #0a0a0f;
+      --surface: #111118;
+      --border: #2a2a3a;
+      --accent: #7c3aed;
+      --accent2: #06b6d4;
+      --text: #e2e8f0;
+      --muted: #64748b;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      background: var(--bg) !important;
+      color: var(--text) !important;
+      font-family: 'Space Mono', monospace !important;
+      margin: 0;
+    }
+
+    .topbar { display: none !important; }
+
+    .custom-header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 18px 24px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .custom-header .logo {
+      font-family: 'Syne', sans-serif;
+      font-weight: 800;
+      font-size: 1.4rem;
+      background: linear-gradient(135deg, #a78bfa, #06b6d4);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      letter-spacing: -0.02em;
+    }
+
+    .custom-header .sub {
+      font-size: 0.72rem;
+      color: var(--muted);
+      border: 1px solid var(--border);
+      padding: 3px 8px;
+      border-radius: 4px;
+    }
+
+    .custom-header .links {
+      margin-left: auto;
+      display: flex;
+      gap: 12px;
+    }
+
+    .custom-header a {
+      font-size: 0.72rem;
+      color: var(--accent2);
+      text-decoration: none;
+      padding: 4px 10px;
+      border: 1px solid rgba(6,182,212,0.3);
+      border-radius: 5px;
+      transition: all 0.15s;
+    }
+    .custom-header a:hover { background: rgba(6,182,212,0.1); }
+
+    #swagger-ui { max-width: 1200px; margin: 0 auto; padding: 24px; }
+
+    .swagger-ui .info { background: var(--surface) !important; border: 1px solid var(--border) !important; border-radius: 10px !important; padding: 20px !important; margin-bottom: 20px !important; }
+    .swagger-ui .info .title { color: var(--text) !important; font-family: 'Syne', sans-serif !important; font-weight: 800 !important; }
+    .swagger-ui .info p, .swagger-ui .info li { color: var(--muted) !important; }
+
+    .swagger-ui .opblock { background: var(--surface) !important; border: 1px solid var(--border) !important; border-radius: 8px !important; margin-bottom: 8px !important; }
+    .swagger-ui .opblock-summary { background: transparent !important; border-radius: 8px !important; }
+    .swagger-ui .opblock-summary-method { border-radius: 5px !important; font-family: 'Space Mono', monospace !important; font-weight: 700 !important; }
+    .swagger-ui .opblock-summary-path, .swagger-ui .opblock-summary-description { color: var(--text) !important; }
+    .swagger-ui .opblock.opblock-get    { border-left: 3px solid #06b6d4 !important; }
+    .swagger-ui .opblock.opblock-post   { border-left: 3px solid #7c3aed !important; }
+    .swagger-ui .opblock.opblock-delete { border-left: 3px solid #ef4444 !important; }
+    .swagger-ui .opblock.opblock-put    { border-left: 3px solid #f59e0b !important; }
+    .swagger-ui .opblock-body { background: #080812 !important; }
+    .swagger-ui .opblock-description-wrapper p { color: var(--muted) !important; }
+
+    .swagger-ui input, .swagger-ui textarea, .swagger-ui select {
+      background: #080812 !important;
+      color: var(--text) !important;
+      border: 1px solid var(--border) !important;
+      font-family: 'Space Mono', monospace !important;
+    }
+
+    .swagger-ui .btn {
+      background: linear-gradient(135deg, var(--accent), #5b21b6) !important;
+      color: white !important;
+      border: none !important;
+      border-radius: 6px !important;
+      font-family: 'Syne', sans-serif !important;
+      font-weight: 700 !important;
+    }
+    .swagger-ui .btn.execute   { background: linear-gradient(135deg, #06b6d4, #0891b2) !important; }
+    .swagger-ui .btn.cancel    { background: var(--surface) !important; color: var(--muted) !important; border: 1px solid var(--border) !important; }
+    .swagger-ui .btn.authorize { background: rgba(16,185,129,0.15) !important; color: #10b981 !important; border: 1px solid rgba(16,185,129,0.3) !important; }
+
+    .swagger-ui table thead tr td, .swagger-ui table thead tr th { background: var(--surface) !important; color: var(--muted) !important; border-color: var(--border) !important; }
+    .swagger-ui .parameter__name { color: var(--accent2) !important; font-family: 'Space Mono', monospace !important; }
+    .swagger-ui .parameter__type { color: var(--muted) !important; }
+
+    .swagger-ui .responses-inner { background: var(--bg) !important; }
+    .swagger-ui .response-col_status { color: var(--accent2) !important; font-family: 'Space Mono', monospace !important; }
+    .swagger-ui .microlight { background: #080812 !important; color: #a78bfa !important; border-radius: 6px !important; padding: 12px !important; }
+
+    .swagger-ui .scheme-container { background: var(--surface) !important; border: 1px solid var(--border) !important; border-radius: 8px !important; padding: 12px !important; }
+
+    .swagger-ui .opblock-tag { color: var(--text) !important; border-bottom: 1px solid var(--border) !important; font-family: 'Syne', sans-serif !important; }
+
+    .swagger-ui section.models { background: var(--surface) !important; border: 1px solid var(--border) !important; border-radius: 8px !important; }
+    .swagger-ui section.models h4 { color: var(--text) !important; font-family: 'Syne', sans-serif !important; }
+    .swagger-ui .model-container { background: #080812 !important; border-radius: 6px !important; }
+    .swagger-ui .model { color: var(--muted) !important; }
+
+    ::-webkit-scrollbar { width: 5px; height: 5px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  </style>
+</head>
+<body>
+
+<div class="custom-header">
+  <div class="logo">QuillAI</div>
+  <div class="sub">API v2.0</div>
+  <div class="links">
+    <a href="/">Home</a>
+    <a href="/dashboard">Dashboard</a>
+    <a href="/ws-test">WS Tester</a>
+    <a href="/health">Health</a>
+  </div>
+</div>
+
+<div id="swagger-ui"></div>
+
+<script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-bundle.js"></script>
+<script>
+  SwaggerUIBundle({
+    url: '/openapi.json',
+    dom_id: '#swagger-ui',
+    presets: [SwaggerUIBundle.presets.apis, SwaggerUIBundle.SwaggerUIStandalonePreset],
+    layout: 'BaseLayout',
+    deepLinking: true,
+    displayRequestDuration: true,
+    tryItOutEnabled: true,
+    filter: true,
+  });
+</script>
+</body>
+</html>

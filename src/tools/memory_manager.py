@@ -36,7 +36,7 @@ class WorkingMemory:
         if use_redis:
             try:
                 import redis
-                from configs.settings import get_settings
+                from src.configs.settings import get_settings
                 settings = get_settings()
                 self._redis = redis.Redis(
                     host=settings.redis_host,

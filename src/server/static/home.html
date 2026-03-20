@@ -1,0 +1,740 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>QuillAI — Home</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,400;0,500;0,600;1,400&family=Unbounded:wght@400;700;900&display=swap" rel="stylesheet"/>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+
+:root {
+  --bg:      #060608;
+  --s1:      #0c0c10;
+  --s2:      #12121a;
+  --s3:      #1a1a26;
+  --border:  #1e1e2e;
+  --border2: #2a2a40;
+  --cyan:    #22d3ee;
+  --violet:  #7c3aed;
+  --green:   #10b981;
+  --amber:   #f59e0b;
+  --pink:    #ec4899;
+  --red:     #ef4444;
+  --text:    #f0f0f8;
+  --sub:     #8888aa;
+  --dim:     #444460;
+  --mono:    'IBM Plex Mono', monospace;
+  --head:    'Unbounded', sans-serif;
+}
+
+html { scroll-behavior: smooth; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--mono);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+.bg-grid {
+  position: fixed; inset: 0; z-index: 0; pointer-events: none;
+  background-image:
+    linear-gradient(rgba(34,211,238,0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(34,211,238,0.025) 1px, transparent 1px);
+  background-size: 48px 48px;
+}
+
+.bg-glow {
+  position: fixed; inset: 0; z-index: 0; pointer-events: none;
+  background:
+    radial-gradient(ellipse 55% 45% at 5%  10%, rgba(124,58,237,0.12) 0%, transparent 55%),
+    radial-gradient(ellipse 45% 55% at 95% 90%, rgba(34,211,238,0.09) 0%, transparent 55%),
+    radial-gradient(ellipse 35% 35% at 50% 50%, rgba(16,185,129,0.04) 0%, transparent 60%);
+}
+
+.wrap { position:relative; z-index:1; max-width:1100px; margin:0 auto; padding:0 28px 100px; }
+
+/* NAV */
+nav {
+  display: flex; align-items: center; gap: 14px;
+  padding: 20px 0; border-bottom: 1px solid var(--border);
+  flex-wrap: wrap; animation: up 0.5s ease both;
+}
+
+.logo {
+  font-family: var(--head); font-weight: 900; font-size: 1.2rem;
+  letter-spacing: -0.04em; color: var(--text);
+  display: flex; align-items: center; gap: 10px; text-decoration: none;
+}
+
+.logo-icon {
+  width: 30px; height: 30px; border-radius: 7px;
+  background: linear-gradient(135deg, var(--violet), var(--cyan));
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.85rem;
+}
+
+.nav-sep { width:1px; height:18px; background:var(--border2); }
+.nav-links { display:flex; gap:4px; flex-wrap:wrap; }
+
+.nav-link {
+  font-size: 0.67rem; padding: 5px 11px; border-radius: 6px;
+  color: var(--sub); text-decoration: none; border: 1px solid transparent;
+  transition: all 0.15s; letter-spacing: 0.03em;
+}
+.nav-link:hover { color: var(--text); background: var(--s2); border-color: var(--border); }
+.nav-link.cur   { color: var(--cyan); background: rgba(34,211,238,0.06); border-color: rgba(34,211,238,0.2); }
+
+.nav-right { margin-left:auto; }
+
+.health-chip {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 0.64rem; color: var(--dim);
+  background: var(--s1); border: 1px solid var(--border);
+  padding: 5px 11px; border-radius: 20px;
+}
+
+.led { width:6px; height:6px; border-radius:50%; background:var(--dim); transition:all 0.3s; }
+.led.ok  { background:var(--green); box-shadow:0 0 8px var(--green); animation:blink 2.5s infinite; }
+.led.err { background:var(--red);   box-shadow:0 0 6px var(--red); }
+.led.warn{ background:var(--amber); box-shadow:0 0 6px var(--amber); }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+/* HERO */
+.hero {
+  padding: 76px 0 56px;
+  display: grid; grid-template-columns: 1fr 210px;
+  gap: 44px; align-items: center;
+  animation: up 0.55s 0.05s ease both;
+}
+@media (max-width:680px){ .hero{grid-template-columns:1fr;} }
+
+.eyebrow {
+  font-size: 0.6rem; letter-spacing: 0.18em; text-transform: uppercase;
+  color: var(--cyan); margin-bottom: 18px;
+  display: flex; align-items: center; gap: 10px;
+}
+.eyebrow::before { content:''; width:20px; height:1px; background:var(--cyan); }
+
+h1 {
+  font-family: var(--head); font-weight: 900;
+  font-size: clamp(1.9rem, 5.2vw, 3.4rem);
+  line-height: 1.05; letter-spacing: -0.05em; margin-bottom: 18px;
+}
+.h-dim  { color: var(--dim); }
+.h-grad {
+  background: linear-gradient(110deg, #818cf8 0%, #22d3ee 55%, #34d399 100%);
+  -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text;
+}
+
+.hero-sub {
+  font-size: 0.82rem; color: var(--sub); line-height: 1.8;
+  max-width: 460px; margin-bottom: 30px;
+}
+
+.hero-btns { display:flex; gap:10px; flex-wrap:wrap; }
+
+.btn {
+  display:inline-flex; align-items:center; gap:8px;
+  padding:11px 22px; border-radius:8px;
+  font-family:var(--head); font-weight:700; font-size:0.73rem;
+  letter-spacing:0.03em; text-decoration:none;
+  transition:all 0.18s; border:none; cursor:pointer;
+}
+.btn-cta {
+  background:linear-gradient(135deg,var(--violet),#4f46e5);
+  color:white; box-shadow:0 4px 20px rgba(124,58,237,0.3);
+}
+.btn-cta:hover { transform:translateY(-2px); box-shadow:0 8px 30px rgba(124,58,237,0.5); }
+.btn-ghost {
+  background:var(--s2); color:var(--sub); border:1px solid var(--border2);
+}
+.btn-ghost:hover { color:var(--text); border-color:var(--sub); }
+
+/* version box */
+.v-box {
+  background:var(--s1); border:1px solid var(--border);
+  border-radius:14px; padding:22px 18px; text-align:center;
+  position:relative; overflow:hidden;
+}
+.v-box::before {
+  content:''; position:absolute; top:0; left:0; right:0; height:2px;
+  background:linear-gradient(90deg,var(--violet),var(--cyan));
+}
+.v-num {
+  font-family:var(--head); font-weight:900; font-size:2.6rem;
+  letter-spacing:-0.06em;
+  background:linear-gradient(135deg,var(--violet),var(--cyan));
+  -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text;
+}
+.v-label { font-size:0.58rem; color:var(--dim); letter-spacing:0.12em; text-transform:uppercase; margin-top:4px; }
+.v-hr    { height:1px; background:var(--border); margin:14px 0; }
+.v-row   { display:flex; justify-content:space-between; font-size:0.6rem; color:var(--dim); margin-bottom:6px; }
+.v-row span:last-child { color:var(--sub); }
+
+/* STATS */
+.stats {
+  display:grid; grid-template-columns:repeat(4,1fr); gap:10px;
+  margin-bottom:52px; animation:up 0.55s 0.1s ease both;
+}
+@media(max-width:560px){ .stats{grid-template-columns:repeat(2,1fr);} }
+
+.stat {
+  background:var(--s1); border:1px solid var(--border);
+  border-radius:10px; padding:15px 16px; transition:border-color 0.2s;
+}
+.stat:hover { border-color:var(--border2); }
+.stat-n {
+  font-family:var(--head); font-weight:900;
+  font-size:1.7rem; letter-spacing:-0.05em; margin-bottom:3px;
+}
+.stat-l { font-size:0.58rem; color:var(--dim); text-transform:uppercase; letter-spacing:0.1em; }
+
+/* SECTION TITLE */
+.sec {
+  display:flex; align-items:center; gap:12px; margin-bottom:16px;
+  font-family:var(--head); font-weight:700; font-size:0.72rem;
+  letter-spacing:0.06em; color:var(--sub); text-transform:uppercase;
+}
+.sec::after { content:''; flex:1; height:1px; background:var(--border); }
+.sec-badge {
+  font-size:0.56rem; padding:2px 7px; border-radius:10px;
+  background:var(--s2); border:1px solid var(--border); color:var(--dim);
+}
+
+/* UI CARDS */
+.ui-section { margin-bottom:52px; animation:up 0.55s 0.15s ease both; }
+
+.cards {
+  display:grid; grid-template-columns:repeat(auto-fill,minmax(230px,1fr)); gap:11px;
+}
+
+.card {
+  background:var(--s1); border:1px solid var(--border);
+  border-radius:12px; padding:18px;
+  text-decoration:none; color:inherit;
+  display:flex; flex-direction:column; gap:9px;
+  transition:all 0.2s; position:relative; overflow:hidden;
+}
+.card::after {
+  content:''; position:absolute; inset:0; opacity:0;
+  background:var(--c-glow,rgba(124,58,237,0.06));
+  transition:opacity 0.2s; pointer-events:none;
+}
+.card:hover { border-color:var(--c-color,var(--violet)); transform:translateY(-3px); }
+.card:hover::after { opacity:1; }
+
+.card-top { display:flex; align-items:center; justify-content:space-between; }
+
+.c-icon {
+  width:34px; height:34px; border-radius:8px;
+  display:flex; align-items:center; justify-content:center; font-size:1rem;
+  background:var(--c-bg,rgba(124,58,237,0.1));
+  border:1px solid var(--c-border,rgba(124,58,237,0.2));
+}
+
+.c-tag {
+  font-size:0.56rem; padding:2px 7px; border-radius:4px;
+  font-family:var(--head); font-weight:700; letter-spacing:0.06em; text-transform:uppercase;
+}
+.tag-live { background:rgba(16,185,129,0.12); color:var(--green); }
+.tag-api  { background:rgba(34,211,238,0.12); color:var(--cyan); }
+.tag-tool { background:rgba(245,158,11,0.12); color:var(--amber); }
+.tag-ref  { background:rgba(124,58,237,0.12); color:#a78bfa; }
+
+.c-name { font-family:var(--head); font-weight:700; font-size:0.85rem; letter-spacing:-0.02em; }
+.c-desc { font-size:0.69rem; color:var(--sub); line-height:1.6; flex:1; }
+.c-url  {
+  font-size:0.6rem; color:var(--dim);
+  background:var(--s2); border:1px solid var(--border);
+  padding:3px 8px; border-radius:4px; align-self:flex-start;
+}
+
+/* ENDPOINTS */
+.ep-section { margin-bottom:52px; animation:up 0.55s 0.2s ease both; }
+
+.method-group { margin-bottom:20px; }
+
+.group-label {
+  font-size:0.58rem; color:var(--dim); letter-spacing:0.12em;
+  text-transform:uppercase; margin-bottom:7px;
+  display:flex; align-items:center; gap:10px;
+}
+.group-label::after { content:''; flex:1; height:1px; background:var(--border); }
+
+/* endpoint row */
+.ep {
+  display:grid; grid-template-columns:68px 1fr auto;
+  border:1px solid var(--border); border-radius:8px;
+  margin-bottom:5px; overflow:hidden;
+  background:var(--s1); transition:border-color 0.15s, background 0.15s;
+}
+.ep:hover { border-color:var(--border2); background:var(--s2); }
+.ep-link { text-decoration:none; color:inherit; display:contents; }
+
+.m {
+  display:flex; align-items:center; justify-content:center;
+  font-family:var(--head); font-weight:700; font-size:0.58rem;
+  letter-spacing:0.08em; padding:0 10px;
+  border-right:1px solid var(--border); min-height:50px; flex-shrink:0;
+}
+.m-get  { color:var(--cyan);  background:rgba(34,211,238,0.05); }
+.m-post { color:#a78bfa;      background:rgba(124,58,237,0.05); }
+.m-ws   { color:var(--green); background:rgba(16,185,129,0.05); }
+.m-ui   { color:var(--amber); background:rgba(245,158,11,0.05); }
+
+.ep-mid { padding:11px 14px; display:flex; flex-direction:column; justify-content:center; gap:3px; }
+
+.ep-path {
+  font-size:0.78rem; font-family:var(--mono); color:var(--text);
+  display:flex; align-items:center; gap:5px; flex-wrap:wrap;
+}
+.ep-param { color:var(--amber); }
+.ep-desc  { font-size:0.65rem; color:var(--dim); }
+
+.ep-right {
+  display:flex; align-items:center; gap:8px;
+  padding:0 14px; flex-shrink:0;
+}
+
+.ep-badge {
+  font-size:0.56rem; padding:2px 7px; border-radius:4px;
+  font-family:var(--head); font-weight:700; white-space:nowrap;
+}
+.b-live   { background:rgba(16,185,129,0.12);  color:var(--green); }
+.b-async  { background:rgba(34,211,238,0.12);  color:var(--cyan); }
+.b-sync   { background:rgba(245,158,11,0.12);  color:var(--amber); }
+.b-stream { background:rgba(124,58,237,0.12);  color:#a78bfa; }
+.b-ui     { background:rgba(236,72,153,0.12);  color:var(--pink); }
+
+.copy-btn {
+  font-size:0.58rem; padding:2px 7px; border-radius:4px;
+  background:var(--s3); border:1px solid var(--border);
+  color:var(--dim); cursor:pointer; transition:all 0.15s; font-family:var(--mono);
+}
+.copy-btn:hover { color:var(--text); border-color:var(--sub); }
+.copy-btn.ok    { color:var(--green); border-color:var(--green); }
+
+.expand-btn {
+  font-size:0.62rem; color:var(--dim); cursor:pointer;
+  padding:0 4px; transition:color 0.15s; background:none; border:none;
+  font-family:var(--mono);
+}
+.expand-btn:hover { color:var(--cyan); }
+
+.ep-arrow { color:var(--dim); font-size:0.85rem; transition:transform 0.15s; }
+.ep:hover .ep-arrow { transform:translateX(3px); color:var(--sub); }
+
+/* expandable body */
+.ep-body {
+  display:none; border-top:1px solid var(--border);
+  background:#04040b; padding:13px 14px 13px 82px;
+  font-size:0.68rem; color:#a78bfa; line-height:1.75;
+  white-space:pre; overflow-x:auto;
+}
+.ep-body.open { display:block; }
+
+/* FOOTER */
+footer {
+  border-top:1px solid var(--border); padding:22px 0;
+  display:flex; align-items:center; justify-content:space-between;
+  flex-wrap:wrap; gap:12px; font-size:0.62rem; color:var(--dim);
+  animation:up 0.55s 0.3s ease both;
+}
+footer a { color:var(--cyan); text-decoration:none; }
+footer a:hover { text-decoration:underline; }
+.f-links { display:flex; gap:16px; }
+
+@keyframes up {
+  from { opacity:0; transform:translateY(14px); }
+  to   { opacity:1; transform:translateY(0); }
+}
+</style>
+</head>
+<body>
+<div class="bg-grid"></div>
+<div class="bg-glow"></div>
+
+<div class="wrap">
+
+  <!-- NAV -->
+  <nav>
+    <a class="logo" href="/"><div class="logo-icon">✦</div>QuillAI</a>
+    <div class="nav-sep"></div>
+    <div class="nav-links">
+      <a class="nav-link cur"  href="/">Home</a>
+      <a class="nav-link" href="/dashboard">Dashboard</a>
+      <a class="nav-link" href="/docs">API Docs</a>
+      <a class="nav-link" href="/ws-test">WS Tester</a>
+      <a class="nav-link" href="/redoc">ReDoc</a>
+    </div>
+    <div class="nav-right">
+      <div class="health-chip">
+        <div class="led" id="led"></div>
+        <span id="htext">checking...</span>
+      </div>
+    </div>
+  </nav>
+
+  <!-- HERO -->
+  <div class="hero">
+    <div>
+      <div class="eyebrow">Autonomous Data Analysis Agent</div>
+      <h1>
+        <span class="h-dim">Analyse.</span><br/>
+        <span class="h-grad">Understand.</span><br/>
+        <span class="h-dim">Act.</span>
+      </h1>
+      <p class="hero-sub">
+        QuillAI plans a multi-step strategy, writes &amp; executes Python,
+        self-corrects errors, then scores its own output quality.
+        Stream every thought in real-time via WebSocket.
+      </p>
+      <div class="hero-btns">
+        <a class="btn btn-cta" href="/dashboard">▶ &nbsp;Open Dashboard</a>
+        <a class="btn btn-ghost" href="/docs">Explore API →</a>
+      </div>
+    </div>
+
+    <div class="v-box">
+      <div class="v-num">v2.0</div>
+      <div class="v-label">Current release</div>
+      <div class="v-hr"></div>
+      <div class="v-row"><span>Framework</span><span>FastAPI</span></div>
+      <div class="v-row"><span>Task Store</span><span>Redis</span></div>
+      <div class="v-row"><span>Memory</span><span>ChromaDB</span></div>
+      <div class="v-row"><span>Streaming</span><span>WebSocket</span></div>
+    </div>
+  </div>
+
+  <!-- LIVE STATS -->
+  <div class="stats">
+    <div class="stat">
+      <div class="stat-n" style="color:var(--cyan)"  id="s-tasks">—</div>
+      <div class="stat-l">Tasks in Redis</div>
+    </div>
+    <div class="stat">
+      <div class="stat-n" style="color:var(--green)" id="s-conns">—</div>
+      <div class="stat-l">Active WS Conns</div>
+    </div>
+    <div class="stat">
+      <div class="stat-n" style="color:#a78bfa"      id="s-agent">—</div>
+      <div class="stat-l">Agent Status</div>
+    </div>
+    <div class="stat">
+      <div class="stat-n" style="color:var(--amber)" id="s-redis">—</div>
+      <div class="stat-l">Redis</div>
+    </div>
+  </div>
+
+  <!-- UI PAGES -->
+  <div class="ui-section">
+    <div class="sec">UI Pages <span class="sec-badge">4 pages</span></div>
+    <div class="cards">
+
+      <a class="card" href="/dashboard"
+         style="--c-color:var(--violet);--c-glow:rgba(124,58,237,0.07);--c-bg:rgba(124,58,237,0.08);--c-border:rgba(124,58,237,0.2);">
+        <div class="card-top"><div class="c-icon">📊</div><span class="c-tag tag-live">Live</span></div>
+        <div class="c-name">Agent Dashboard</div>
+        <div class="c-desc">Real-time event stream, progress bar, file upload, task history and tabbed results viewer.</div>
+        <span class="c-url">GET /dashboard</span>
+      </a>
+
+      <a class="card" href="/docs"
+         style="--c-color:var(--cyan);--c-glow:rgba(34,211,238,0.07);--c-bg:rgba(34,211,238,0.08);--c-border:rgba(34,211,238,0.2);">
+        <div class="card-top"><div class="c-icon">📋</div><span class="c-tag tag-api">API</span></div>
+        <div class="c-name">Swagger UI</div>
+        <div class="c-desc">Dark-themed interactive API docs. Try every endpoint with full request/response schemas.</div>
+        <span class="c-url">GET /docs</span>
+      </a>
+
+      <a class="card" href="/ws-test"
+         style="--c-color:var(--green);--c-glow:rgba(16,185,129,0.07);--c-bg:rgba(16,185,129,0.08);--c-border:rgba(16,185,129,0.2);">
+        <div class="card-top"><div class="c-icon">⚡</div><span class="c-tag tag-tool">Tool</span></div>
+        <div class="c-name">WS Tester</div>
+        <div class="c-desc">Terminal-style WebSocket debugger. Connect, send messages, track TX/RX and inspect raw events.</div>
+        <span class="c-url">GET /ws-test</span>
+      </a>
+
+      <a class="card" href="/redoc"
+         style="--c-color:var(--amber);--c-glow:rgba(245,158,11,0.07);--c-bg:rgba(245,158,11,0.08);--c-border:rgba(245,158,11,0.2);">
+        <div class="card-top"><div class="c-icon">📖</div><span class="c-tag tag-ref">Ref</span></div>
+        <div class="c-name">ReDoc</div>
+        <div class="c-desc">Clean reference layout for reading response models and schema definitions in depth.</div>
+        <span class="c-url">GET /redoc</span>
+      </a>
+
+    </div>
+  </div>
+
+  <!-- ALL ENDPOINTS -->
+  <div class="ep-section">
+    <div class="sec">All Endpoints <span class="sec-badge">9 routes</span></div>
+
+    <!-- GET -->
+    <div class="method-group">
+      <div class="group-label">GET</div>
+
+      <div class="ep">
+        <a class="ep-link" href="/health" target="_blank">
+          <div class="m m-get">GET</div>
+          <div class="ep-mid">
+            <div class="ep-path">/health</div>
+            <div class="ep-desc">Agent readiness · Redis status · active WS connections · task count</div>
+          </div>
+        </a>
+        <div class="ep-right">
+          <span class="ep-badge b-live">live</span>
+          <button class="copy-btn" onclick="cp(event,'/health')">copy</button>
+          <span class="ep-arrow">›</span>
+        </div>
+      </div>
+
+      <div class="ep">
+        <a class="ep-link" href="/docs#/default/get_task_task__task_id__get" target="_blank">
+          <div class="m m-get">GET</div>
+          <div class="ep-mid">
+            <div class="ep-path">/task/<span class="ep-param">{task_id}</span></div>
+            <div class="ep-desc">Poll current status and full result of a task by ID</div>
+          </div>
+        </a>
+        <div class="ep-right">
+          <span class="ep-badge b-async">poll</span>
+          <button class="copy-btn" onclick="cp(event,'/task/{task_id}')">copy</button>
+          <span class="ep-arrow">›</span>
+        </div>
+      </div>
+
+      <div class="ep">
+        <a class="ep-link" href="/memory/stats" target="_blank">
+          <div class="m m-get">GET</div>
+          <div class="ep-mid">
+            <div class="ep-path">/memory/stats</div>
+            <div class="ep-desc">Episodic memory entry count and ChromaDB persist path</div>
+          </div>
+        </a>
+        <div class="ep-right">
+          <span class="ep-badge b-live">live</span>
+          <button class="copy-btn" onclick="cp(event,'/memory/stats')">copy</button>
+          <span class="ep-arrow">›</span>
+        </div>
+      </div>
+
+      <div class="ep">
+        <a class="ep-link" href="/openapi.json" target="_blank">
+          <div class="m m-get">GET</div>
+          <div class="ep-mid">
+            <div class="ep-path">/openapi.json</div>
+            <div class="ep-desc">Raw OpenAPI 3.x schema for this API</div>
+          </div>
+        </a>
+        <div class="ep-right">
+          <button class="copy-btn" onclick="cp(event,'/openapi.json')">copy</button>
+          <span class="ep-arrow">›</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- POST -->
+    <div class="method-group">
+      <div class="group-label">POST</div>
+
+      <!-- /upload -->
+      <div class="ep" style="flex-direction:column;display:block;">
+        <div style="display:grid;grid-template-columns:68px 1fr auto;">
+          <div class="m m-post">POST</div>
+          <div class="ep-mid">
+            <div class="ep-path">/upload</div>
+            <div class="ep-desc">Upload dataset (.csv .xlsx .xls .json .parquet) — returns file_key + preview</div>
+          </div>
+          <div class="ep-right">
+            <span class="ep-badge b-sync">upload</span>
+            <button class="copy-btn" onclick="cp(event,'/upload')">copy</button>
+            <button class="expand-btn" onclick="tog('b-upload')">{ }</button>
+          </div>
+        </div>
+        <div class="ep-body" id="b-upload"><span style="color:var(--sub)">// multipart/form-data</span>
+file: &lt;binary&gt;   <span style="color:var(--dim)">// required — .csv, .xlsx, .json, .parquet</span>
+
+<span style="color:var(--sub)">// Response 200</span>
+{
+  "file_key": <span style="color:#86efac">"a1b2c3d4"</span>,
+  "filename": <span style="color:#86efac">"data.csv"</span>,
+  "preview": {
+    "shape": [1000, 12],
+    "columns": ["col1", "col2", ...],
+    "dtypes": { "col1": "int64", ... },
+    "sample": [{ "col1": 1, ... }, ...]
+  }
+}</div>
+      </div>
+
+      <!-- /analyze -->
+      <div class="ep" style="display:block;">
+        <div style="display:grid;grid-template-columns:68px 1fr auto;">
+          <div class="m m-post">POST</div>
+          <div class="ep-mid">
+            <div class="ep-path">/analyze</div>
+            <div class="ep-desc">Start async analysis — returns task_id instantly, stream results via /ws/{task_id}</div>
+          </div>
+          <div class="ep-right">
+            <span class="ep-badge b-async">async</span>
+            <button class="copy-btn" onclick="cp(event,'/analyze')">copy</button>
+            <button class="expand-btn" onclick="tog('b-analyze')">{ }</button>
+          </div>
+        </div>
+        <div class="ep-body" id="b-analyze"><span style="color:var(--sub)">// application/json</span>
+{
+  "goal":        <span style="color:#86efac">"Find top 3 churn factors and build a model"</span>,  <span style="color:var(--dim)">// required, min 10 chars</span>
+  "file_key":    <span style="color:#86efac">"a1b2c3d4"</span>,    <span style="color:var(--dim)">// optional — from /upload</span>
+  "sample_data": <span style="color:#86efac">"col1,col2\n1,2"</span>  <span style="color:var(--dim)">// optional — inline CSV string</span>
+}
+
+<span style="color:var(--sub)">// Response 200</span>
+{
+  "task_id":       <span style="color:#86efac">"ab12cd34"</span>,
+  "status":        <span style="color:#86efac">"started"</span>,
+  "websocket_url": <span style="color:#86efac">"/ws/ab12cd34"</span>,
+  "message":       <span style="color:#86efac">"Connect to WebSocket /ws/ab12cd34 for live updates"</span>
+}</div>
+      </div>
+
+      <!-- /analyze/sync -->
+      <div class="ep" style="display:block;">
+        <div style="display:grid;grid-template-columns:68px 1fr auto;">
+          <div class="m m-post">POST</div>
+          <div class="ep-mid">
+            <div class="ep-path">/analyze/sync</div>
+            <div class="ep-desc">Synchronous analysis — blocks until complete, returns full report object</div>
+          </div>
+          <div class="ep-right">
+            <span class="ep-badge b-sync">sync</span>
+            <button class="copy-btn" onclick="cp(event,'/analyze/sync')">copy</button>
+            <button class="expand-btn" onclick="tog('b-sync')">{ }</button>
+          </div>
+        </div>
+        <div class="ep-body" id="b-sync"><span style="color:var(--sub)">// Same body as /analyze</span>
+{
+  "goal":     <span style="color:#86efac">"Summarise key trends in this sales dataset"</span>,
+  "file_key": <span style="color:#86efac">"a1b2c3d4"</span>
+}
+
+<span style="color:var(--sub)">// Response 200</span>
+{
+  "task_id":           <span style="color:#86efac">"..."</span>,
+  "executive_summary": <span style="color:#86efac">"..."</span>,
+  "key_findings":      [...],
+  "detailed_analysis": <span style="color:#86efac">"..."</span>,
+  "methodology":       <span style="color:#86efac">"..."</span>,
+  "limitations":       <span style="color:#86efac">"..."</span>,
+  "confidence_score":  0.87,
+  "steps_taken":       5,
+  "self_corrections":  1,
+  "total_latency_ms":  4200,
+  "has_figures":       true,
+  "figure_count":      3
+}</div>
+      </div>
+    </div>
+
+    <!-- WEBSOCKET -->
+    <div class="method-group">
+      <div class="group-label">WebSocket</div>
+
+      <div class="ep" style="display:block;">
+        <div style="display:grid;grid-template-columns:68px 1fr auto;">
+          <div class="m m-ws">WS</div>
+          <div class="ep-mid">
+            <div class="ep-path">/ws/<span class="ep-param">{task_id}</span></div>
+            <div class="ep-desc">Live agent event stream — connect after /analyze for real-time plan/execute/correct/complete events</div>
+          </div>
+          <div class="ep-right">
+            <span class="ep-badge b-stream">stream</span>
+            <a class="copy-btn" href="/ws-test" style="text-decoration:none;">test</a>
+            <button class="expand-btn" onclick="tog('b-ws')">{ }</button>
+          </div>
+        </div>
+        <div class="ep-body" id="b-ws"><span style="color:var(--sub)">// Connect: ws://localhost:8000/ws/{task_id}</span>
+<span style="color:var(--sub)">// Server sends these event types:</span>
+
+{ "event_type": <span style="color:#86efac">"plan"</span>,      "data": { "step": "Analysing columns..." } }
+{ "event_type": <span style="color:#86efac">"execute"</span>,   "data": { "code": "import pandas as pd..." } }
+{ "event_type": <span style="color:#86efac">"correct"</span>,   "data": { "error": "NameError", "fix": "..." } }
+{ "event_type": <span style="color:#86efac">"evaluate"</span>,  "data": { "score": 0.91 } }
+{ "event_type": <span style="color:#86efac">"complete"</span>,  "data": { <span style="color:var(--dim)">/* full report — same as /analyze/sync response */</span> } }
+{ "event_type": <span style="color:#86efac">"error"</span>,     "data": { "message": "Something went wrong" } }
+{ "event_type": <span style="color:#86efac">"heartbeat"</span> }  <span style="color:var(--dim)">// sent every 30s to keep connection alive</span></div>
+      </div>
+    </div>
+
+    <!-- UI ROUTES -->
+    <div class="method-group">
+      <div class="group-label">UI Routes</div>
+
+      <div class="ep"><a class="ep-link" href="/"><div class="m m-ui">GET</div><div class="ep-mid"><div class="ep-path">/</div><div class="ep-desc">This home page — API overview, endpoint reference, live stats</div></div></a><div class="ep-right"><span class="ep-badge b-ui">ui</span><span class="ep-arrow">›</span></div></div>
+      <div class="ep"><a class="ep-link" href="/dashboard"><div class="m m-ui">GET</div><div class="ep-mid"><div class="ep-path">/dashboard</div><div class="ep-desc">Real-time agent dashboard with live stream and results viewer</div></div></a><div class="ep-right"><span class="ep-badge b-ui">ui</span><span class="ep-arrow">›</span></div></div>
+      <div class="ep"><a class="ep-link" href="/docs"><div class="m m-ui">GET</div><div class="ep-mid"><div class="ep-path">/docs</div><div class="ep-desc">Custom dark Swagger UI — interactive API explorer</div></div></a><div class="ep-right"><span class="ep-badge b-ui">ui</span><span class="ep-arrow">›</span></div></div>
+      <div class="ep"><a class="ep-link" href="/ws-test"><div class="m m-ui">GET</div><div class="ep-mid"><div class="ep-path">/ws-test</div><div class="ep-desc">Terminal-style WebSocket tester and event inspector</div></div></a><div class="ep-right"><span class="ep-badge b-ui">ui</span><span class="ep-arrow">›</span></div></div>
+      <div class="ep"><a class="ep-link" href="/redoc"><div class="m m-ui">GET</div><div class="ep-mid"><div class="ep-path">/redoc</div><div class="ep-desc">ReDoc — alternative API reference documentation</div></div></a><div class="ep-right"><span class="ep-badge b-ui">ui</span><span class="ep-arrow">›</span></div></div>
+    </div>
+
+  </div>
+
+  <!-- FOOTER -->
+  <footer>
+    <span>QuillAI API &nbsp;·&nbsp; FastAPI + Redis + ChromaDB &nbsp;·&nbsp; v2.0.0</span>
+    <div class="f-links">
+      <a href="/openapi.json">openapi.json</a>
+      <a href="/health">health</a>
+      <a href="/memory/stats">memory</a>
+    </div>
+  </footer>
+
+</div>
+
+<script>
+async function poll() {
+  try {
+    const r = await fetch('/health');
+    const d = await r.json();
+    const led = document.getElementById('led');
+    const txt = document.getElementById('htext');
+    if (d.agent_ready && d.redis === 'healthy') {
+      led.className = 'led ok'; txt.textContent = 'online';
+    } else if (d.agent_ready) {
+      led.className = 'led warn'; txt.textContent = 'no redis';
+    } else {
+      led.className = 'led warn'; txt.textContent = 'initializing';
+    }
+    const f = v => v != null ? String(v) : '—';
+    document.getElementById('s-tasks').textContent = f(d.tasks_in_memory);
+    document.getElementById('s-conns').textContent = f(d.active_connections);
+    document.getElementById('s-agent').textContent = d.agent_ready ? 'ready' : 'init';
+    document.getElementById('s-redis').textContent = d.redis ?? '—';
+  } catch {
+    document.getElementById('led').className = 'led err';
+    document.getElementById('htext').textContent = 'offline';
+    ['s-tasks','s-conns','s-agent','s-redis'].forEach(id =>
+      document.getElementById(id).textContent = 'err'
+    );
+  }
+}
+poll(); setInterval(poll, 6000);
+
+function cp(e, path) {
+  e.preventDefault(); e.stopPropagation();
+  navigator.clipboard.writeText(window.location.origin + path).then(() => {
+    const b = e.target;
+    b.textContent = '✓'; b.classList.add('ok');
+    setTimeout(() => { b.textContent = 'copy'; b.classList.remove('ok'); }, 1600);
+  });
+}
+
+function tog(id) {
+  document.getElementById(id).classList.toggle('open');
+}
+</script>
+</body>
+</html>

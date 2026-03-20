@@ -23,6 +23,8 @@ class Settings(BaseSettings):
     chroma_persist_dir: str = Field("./data/memory", env="CHROMA_PERSIST_DIR")
     redis_host: str = Field("localhost", env="REDIS_HOST")
     redis_port: int = Field(6379, env="REDIS_PORT")
+    redis_db: int = Field(0, env="REDIS_DB")
+    redis_password: Optional[str] = Field(None, env="REDIS_PASSWORD")
     max_working_memory_steps: int = Field(50, env="MAX_WORKING_MEMORY")
 
     # === Agent Behavior ===
@@ -38,10 +40,6 @@ class Settings(BaseSettings):
     api_host: str = Field("0.0.0.0", env="API_HOST")
     api_port: int = Field(8000, env="API_PORT")
     log_level: str = Field("INFO", env="LOG_LEVEL")
-
-    # === Monitoring ===
-    langfuse_public_key: Optional[str] = Field(None, env="LANGFUSE_PUBLIC_KEY")
-    langfuse_secret_key: Optional[str] = Field(None, env="LANGFUSE_SECRET_KEY")
 
     class Config:
         env_file = ".env"

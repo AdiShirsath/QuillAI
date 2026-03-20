@@ -1,0 +1,709 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>QuillAI — Agent Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Syne:wght@400;600;700;800&family=Lora:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet"/>
+<style>
+  :root {
+    --bg:        #0a0a0f;
+    --surface:   #111118;
+    --surface2:  #1a1a24;
+    --border:    #2a2a3a;
+    --accent:    #7c3aed;
+    --accent2:   #06b6d4;
+    --accent3:   #10b981;
+    --warn:      #f59e0b;
+    --error:     #ef4444;
+    --text:      #e2e8f0;
+    --muted:     #64748b;
+    --font-head: 'Syne', sans-serif;
+    --font-mono: 'Space Mono', monospace;
+    --font-body: 'Lora', serif;
+  }
+
+  * { margin:0; padding:0; box-sizing:border-box; }
+
+  body {
+    background: var(--bg); color: var(--text);
+    font-family: var(--font-mono); min-height:100vh; overflow-x:hidden;
+  }
+
+  body::before {
+    content:''; position:fixed; inset:0;
+    background-image:
+      linear-gradient(rgba(124,58,237,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(124,58,237,0.03) 1px, transparent 1px);
+    background-size:40px 40px; pointer-events:none; z-index:0;
+  }
+
+  .orb { position:fixed; border-radius:50%; filter:blur(120px); opacity:0.15; pointer-events:none; z-index:0; animation:drift 12s ease-in-out infinite alternate; }
+  .orb-1 { width:600px; height:600px; background:var(--accent); top:-200px; left:-200px; }
+  .orb-2 { width:400px; height:400px; background:var(--accent2); bottom:-100px; right:-100px; animation-delay:-6s; }
+  @keyframes drift { from{transform:translate(0,0) scale(1)} to{transform:translate(40px,30px) scale(1.05)} }
+
+  .wrapper { position:relative; z-index:1; max-width:1200px; margin:0 auto; padding:0 24px; }
+
+  /* ── Header ── */
+  header {
+    padding:28px 0 20px; border-bottom:1px solid var(--border);
+    display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:16px;
+  }
+  .logo {
+    font-family:var(--font-head); font-weight:800; font-size:1.6rem; letter-spacing:-0.03em;
+    background:linear-gradient(135deg,#a78bfa,#06b6d4); -webkit-background-clip:text; -webkit-text-fill-color:transparent;
+  }
+  .logo span { font-weight:400; opacity:0.6; }
+  .status-bar { display:flex; align-items:center; gap:20px; font-size:0.72rem; color:var(--muted); }
+  .dot { width:7px; height:7px; border-radius:50%; background:var(--muted); display:inline-block; margin-right:6px; transition:background 0.3s; }
+  .dot.green  { background:var(--accent3); box-shadow:0 0 8px var(--accent3); animation:pulse-dot 2s infinite; }
+  .dot.yellow { background:var(--warn);    box-shadow:0 0 8px var(--warn); }
+  .dot.red    { background:var(--error);   box-shadow:0 0 8px var(--error); }
+  @keyframes pulse-dot { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+  /* ── Layout ── */
+  .main-grid { display:grid; grid-template-columns:380px 1fr; gap:20px; padding:24px 0; min-height:calc(100vh - 100px); }
+  @media(max-width:860px){ .main-grid{grid-template-columns:1fr;} }
+
+  /* ── Cards ── */
+  .card { background:var(--surface); border:1px solid var(--border); border-radius:12px; overflow:hidden; }
+  .card-header {
+    padding:14px 18px; border-bottom:1px solid var(--border);
+    display:flex; align-items:center; justify-content:space-between; background:var(--surface2);
+  }
+  .card-title { font-family:var(--font-head); font-weight:700; font-size:0.78rem; letter-spacing:0.08em; text-transform:uppercase; color:var(--muted); }
+  .card-body  { padding:18px; }
+
+  /* ── Left panel ── */
+  .left-panel { display:flex; flex-direction:column; gap:16px; }
+
+  label { display:block; font-size:0.7rem; color:var(--muted); text-transform:uppercase; letter-spacing:0.08em; margin-bottom:6px; }
+
+  textarea, input[type="text"] {
+    width:100%; background:var(--bg); border:1px solid var(--border); border-radius:8px;
+    color:var(--text); font-family:var(--font-mono); font-size:0.8rem;
+    padding:10px 12px; resize:vertical; transition:border-color 0.2s; outline:none;
+  }
+  textarea:focus, input[type="text"]:focus { border-color:var(--accent); box-shadow:0 0 0 3px rgba(124,58,237,0.15); }
+  textarea { min-height:90px; }
+
+  .file-drop {
+    border:2px dashed var(--border); border-radius:8px; padding:20px;
+    text-align:center; cursor:pointer; transition:all 0.2s; font-size:0.75rem; color:var(--muted);
+  }
+  .file-drop:hover,.file-drop.dragover { border-color:var(--accent); background:rgba(124,58,237,0.05); color:var(--text); }
+  .file-drop .icon { font-size:1.8rem; display:block; margin-bottom:6px; }
+  input[type="file"] { display:none; }
+
+  .btn { width:100%; padding:12px; border:none; border-radius:8px; font-family:var(--font-head); font-weight:700; font-size:0.88rem; letter-spacing:0.04em; cursor:pointer; transition:all 0.2s; }
+  .btn-primary { background:linear-gradient(135deg,var(--accent),#5b21b6); color:white; }
+  .btn-primary:hover   { transform:translateY(-1px); box-shadow:0 8px 24px rgba(124,58,237,0.4); }
+  .btn-primary:active  { transform:translateY(0); }
+  .btn-primary:disabled{ opacity:0.5; cursor:not-allowed; transform:none; box-shadow:none; }
+  .btn-secondary { background:var(--surface2); color:var(--muted); border:1px solid var(--border); font-size:0.78rem; padding:8px; margin-top:6px; }
+  .btn-secondary:hover { color:var(--text); border-color:var(--muted); }
+
+  .stats-row { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; }
+  .stat-box  { background:var(--surface2); border:1px solid var(--border); border-radius:8px; padding:12px; text-align:center; }
+  .stat-val  { font-family:var(--font-head); font-weight:800; font-size:1.4rem; background:linear-gradient(135deg,#a78bfa,#06b6d4); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
+  .stat-label{ font-size:0.62rem; color:var(--muted); margin-top:2px; text-transform:uppercase; letter-spacing:0.06em; }
+
+  /* ── Right panel ── */
+  .right-panel { display:flex; flex-direction:column; gap:16px; }
+
+  /* ── Event stream ── */
+  .event-stream {
+    flex:1; min-height:320px; max-height:420px; overflow-y:auto;
+    padding:14px; display:flex; flex-direction:column; gap:8px;
+    scrollbar-width:thin; scrollbar-color:var(--border) transparent;
+  }
+  .event-stream::-webkit-scrollbar { width:4px; }
+  .event-stream::-webkit-scrollbar-thumb { background:var(--border); border-radius:2px; }
+
+  .event-item {
+    display:flex; gap:10px; align-items:flex-start; padding:10px 12px;
+    border-radius:8px; background:var(--surface2); border-left:3px solid var(--border);
+    font-size:0.76rem; line-height:1.5; animation:slide-in 0.25s ease;
+  }
+  @keyframes slide-in { from{opacity:0;transform:translateX(-10px)} to{opacity:1;transform:translateX(0)} }
+  .event-item.plan     { border-left-color:var(--accent2); }
+  .event-item.execute  { border-left-color:var(--accent); }
+  .event-item.correct  { border-left-color:var(--warn); }
+  .event-item.complete { border-left-color:var(--accent3); }
+  .event-item.error    { border-left-color:var(--error); background:rgba(239,68,68,0.06); }
+  .event-item.heartbeat{ opacity:0.4; }
+  .event-icon { font-size:1rem; flex-shrink:0; margin-top:1px; }
+  .event-meta { flex:1; min-width:0; }
+  .event-type { font-family:var(--font-head); font-weight:700; font-size:0.65rem; letter-spacing:0.1em; text-transform:uppercase; margin-bottom:3px; }
+  .event-item.plan .event-type     { color:var(--accent2); }
+  .event-item.execute .event-type  { color:var(--accent); }
+  .event-item.correct .event-type  { color:var(--warn); }
+  .event-item.complete .event-type { color:var(--accent3); }
+  .event-item.error .event-type    { color:var(--error); }
+  .event-item.heartbeat .event-type{ color:var(--muted); }
+  .event-msg  { color:var(--text); word-break:break-word; }
+  .event-time { font-size:0.62rem; color:var(--muted); flex-shrink:0; }
+
+  .empty-state { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px; color:var(--muted); font-size:0.78rem; padding:40px; text-align:center; }
+  .empty-state .big-icon { font-size:3rem; opacity:0.3; }
+
+  /* ── Progress bar ── */
+  .progress-wrap  { background:var(--surface2); border:1px solid var(--border); border-radius:8px; padding:14px 16px; }
+  .progress-label { display:flex; justify-content:space-between; font-size:0.7rem; color:var(--muted); margin-bottom:8px; }
+  .progress-bar-bg   { height:6px; background:var(--border); border-radius:3px; overflow:hidden; }
+  .progress-bar-fill { height:100%; border-radius:3px; background:linear-gradient(90deg,var(--accent),var(--accent2)); transition:width 0.5s ease; width:0%; }
+
+  /* ── Task history ── */
+  .task-history { max-height:160px; overflow-y:auto; scrollbar-width:thin; scrollbar-color:var(--border) transparent; }
+  .history-item { display:flex; align-items:center; gap:10px; padding:8px 10px; border-radius:6px; font-size:0.72rem; cursor:pointer; transition:background 0.15s; }
+  .history-item:hover { background:var(--surface2); }
+  .history-badge { font-size:0.6rem; padding:2px 6px; border-radius:4px; font-family:var(--font-head); font-weight:700; flex-shrink:0; }
+  .badge-completed { background:rgba(16,185,129,0.15); color:var(--accent3); }
+  .badge-error     { background:rgba(239,68,68,0.15);  color:var(--error); }
+  .badge-running   { background:rgba(124,58,237,0.15); color:#a78bfa; }
+  .badge-queued    { background:rgba(100,116,139,0.15); color:var(--muted); }
+  .history-goal { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--muted); }
+  .history-id   { color:var(--border); font-size:0.62rem; flex-shrink:0; }
+
+  /* ══════════════════════════════════════════
+     RESULT SECTION  (rich viewer)
+  ══════════════════════════════════════════ */
+  .result-section { display:none; }
+  .result-section.visible { display:block; }
+
+  .result-scroll {
+    max-height:660px; overflow-y:auto; padding:18px;
+    scrollbar-width:thin; scrollbar-color:var(--border) transparent;
+  }
+  .result-scroll::-webkit-scrollbar { width:4px; }
+  .result-scroll::-webkit-scrollbar-thumb { background:var(--border); border-radius:2px; }
+
+  /* Status badge */
+  .res-status {
+    display:inline-flex; align-items:center; gap:6px;
+    padding:4px 12px; border-radius:20px;
+    font-family:var(--font-head); font-weight:700; font-size:0.68rem; letter-spacing:0.06em;
+    margin-bottom:16px;
+  }
+  .res-status.completed { background:rgba(16,185,129,0.10); color:var(--accent3); border:1px solid rgba(16,185,129,0.25); }
+  .res-status.error     { background:rgba(239,68,68,0.10);  color:var(--error);   border:1px solid rgba(239,68,68,0.25); }
+
+  /* Stat row */
+  .res-stats { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-bottom:16px; }
+  @media(max-width:600px){ .res-stats{grid-template-columns:repeat(2,1fr);} }
+  .res-stat { background:var(--surface2); border:1px solid var(--border); border-radius:8px; padding:12px; text-align:center; }
+  .res-stat-n { font-family:var(--font-head); font-weight:800; font-size:1.5rem; letter-spacing:-0.03em; margin-bottom:3px; }
+  .res-stat-l { font-size:0.58rem; color:var(--muted); text-transform:uppercase; letter-spacing:0.08em; }
+
+  /* Result cards */
+  .res-card { background:var(--surface2); border:1px solid var(--border); border-radius:10px; padding:18px; margin-bottom:12px; }
+  .res-card-title { font-size:0.6rem; letter-spacing:0.14em; color:var(--muted); text-transform:uppercase; margin-bottom:12px; font-family:var(--font-head); font-weight:700; }
+
+  .res-summary { font-family:var(--font-body); font-size:0.95rem; color:#cbd5e1; line-height:1.82; }
+
+  /* Findings */
+  .finding-row { display:flex; gap:12px; align-items:flex-start; padding:10px 0; border-bottom:1px solid var(--border); }
+  .finding-row:last-child { border-bottom:none; }
+  .finding-num  {
+    font-family:var(--font-head); font-weight:800; font-size:0.62rem;
+    color:var(--accent2); background:rgba(6,182,212,0.08);
+    border:1px solid rgba(6,182,212,0.18); border-radius:4px;
+    padding:2px 7px; flex-shrink:0; margin-top:3px;
+  }
+  .finding-text { font-family:var(--font-body); font-size:0.88rem; color:#cbd5e1; line-height:1.6; }
+
+  /* Body text */
+  .res-body { font-family:var(--font-body); font-size:0.88rem; color:#94a3b8; line-height:1.85; }
+
+  /* Limitations */
+  .limitation { display:flex; gap:8px; align-items:flex-start; padding:7px 0; font-size:0.82rem; color:var(--warn); font-family:var(--font-body); line-height:1.5; border-bottom:1px solid rgba(245,158,11,0.08); }
+  .limitation:last-child { border-bottom:none; }
+
+  /* Figures */
+  .figures-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); gap:12px; }
+  .figure-card  { background:var(--surface); border:1px solid var(--border); border-radius:8px; overflow:hidden; }
+  .figure-img   { width:100%; display:block; background:#fff; }
+  .figure-label { padding:7px 10px; font-size:0.65rem; color:var(--muted); }
+
+  /* Raw JSON toggle */
+  .raw-btn {
+    font-size:0.65rem; color:var(--muted); cursor:pointer; background:none;
+    border:1px solid var(--border); border-radius:5px; padding:4px 10px;
+    font-family:var(--font-mono); transition:all 0.15s;
+  }
+  .raw-btn:hover { color:var(--text); border-color:var(--muted); }
+
+  .raw-block {
+    background:var(--bg); border:1px solid var(--border); border-radius:8px;
+    padding:14px; font-size:0.68rem; color:#a78bfa; line-height:1.6;
+    overflow-x:auto; white-space:pre-wrap; word-break:break-word;
+    max-height:260px; overflow-y:auto; margin-top:10px; display:none;
+    scrollbar-width:thin; scrollbar-color:var(--border) transparent;
+  }
+  .raw-block.open { display:block; }
+
+  /* ── Toast ── */
+  .toast {
+    position:fixed; bottom:24px; right:24px;
+    background:var(--surface); border:1px solid var(--border);
+    border-radius:10px; padding:12px 16px; font-size:0.78rem;
+    z-index:100; opacity:0; transform:translateY(10px); transition:all 0.3s; max-width:300px;
+  }
+  .toast.show { opacity:1; transform:translateY(0); }
+  .toast.success { border-left:3px solid var(--accent3); }
+  .toast.error   { border-left:3px solid var(--error); }
+
+  /* ── Spinner ── */
+  .spinner { display:inline-block; width:14px; height:14px; border:2px solid rgba(255,255,255,0.2); border-top-color:white; border-radius:50%; animation:spin 0.7s linear infinite; vertical-align:middle; margin-right:6px; }
+  @keyframes spin { to{transform:rotate(360deg)} }
+</style>
+</head>
+<body>
+
+<div class="orb orb-1"></div>
+<div class="orb orb-2"></div>
+
+<div class="wrapper">
+  <header>
+    <div class="logo">Quill<span>AI</span></div>
+    <div class="status-bar">
+      <span><span class="dot" id="agent-dot"></span><span id="agent-status">checking...</span></span>
+      <span><span class="dot" id="ws-dot"></span><span id="ws-status">disconnected</span></span>
+      <span id="time-display"></span>
+    </div>
+  </header>
+
+  <div class="main-grid">
+
+    <!-- ── LEFT PANEL ── -->
+    <div class="left-panel">
+
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">New Analysis</span>
+          <span id="task-id-badge" style="font-size:0.65rem;color:var(--muted);"></span>
+        </div>
+        <div class="card-body" style="display:flex;flex-direction:column;gap:14px;">
+          <div>
+            <label>Analysis Goal</label>
+            <textarea id="goal-input" placeholder="e.g. Find the top 3 factors driving customer churn and build a predictive model..."></textarea>
+          </div>
+          <div>
+            <label>Upload Dataset (optional)</label>
+            <div class="file-drop" id="file-drop" onclick="document.getElementById('file-input').click()">
+              <span class="icon">📂</span>
+              <span id="file-label">Drop CSV / Excel / JSON here</span>
+            </div>
+            <input type="file" id="file-input" accept=".csv,.xlsx,.xls,.json,.parquet"/>
+          </div>
+          <div>
+            <label>API Base URL</label>
+            <input type="text" id="api-url" value="http://localhost:8000"/>
+          </div>
+          <button class="btn btn-primary" id="run-btn" onclick="startAnalysis()">▶ &nbsp;Run Analysis</button>
+          <button class="btn btn-secondary" onclick="clearAll()">✕ &nbsp;Clear</button>
+        </div>
+      </div>
+
+      <div class="stats-row">
+        <div class="stat-box"><div class="stat-val" id="stat-events">0</div><div class="stat-label">Events</div></div>
+        <div class="stat-box"><div class="stat-val" id="stat-corrections">0</div><div class="stat-label">Fixes</div></div>
+        <div class="stat-box"><div class="stat-val" id="stat-latency">—</div><div class="stat-label">ms</div></div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Task History</span>
+          <span style="font-size:0.65rem;color:var(--muted);" id="history-count">0 tasks</span>
+        </div>
+        <div class="card-body" style="padding:8px;">
+          <div class="task-history" id="task-history">
+            <div style="padding:16px;text-align:center;color:var(--muted);font-size:0.72rem;">No tasks yet</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ── RIGHT PANEL ── -->
+    <div class="right-panel">
+
+      <!-- Live stream card -->
+      <div class="card" style="flex:1;">
+        <div class="card-header">
+          <span class="card-title">Live Agent Stream</span>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <span id="stream-status" style="font-size:0.65rem;color:var(--muted);">idle</span>
+            <button onclick="clearStream()" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:0.7rem;">clear</button>
+          </div>
+        </div>
+        <div style="padding:10px 14px;">
+          <div class="progress-wrap">
+            <div class="progress-label">
+              <span id="progress-label">Waiting...</span>
+              <span id="progress-pct">0%</span>
+            </div>
+            <div class="progress-bar-bg"><div class="progress-bar-fill" id="progress-fill"></div></div>
+          </div>
+        </div>
+        <div class="event-stream" id="event-stream">
+          <div class="empty-state">
+            <span class="big-icon">🤖</span>
+            <span>Submit a goal to watch the agent think in real-time</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Rich results card ── -->
+      <div class="result-section card" id="result-section">
+        <div class="card-header">
+          <span class="card-title">Analysis Results</span>
+          <div style="display:flex;align-items:center;gap:10px;">
+            <span id="confidence-badge" style="font-size:0.65rem;color:var(--accent3);"></span>
+            <button class="raw-btn" onclick="toggleRaw()">{ } Raw JSON</button>
+          </div>
+        </div>
+        <div class="result-scroll" id="result-body">
+          <!-- filled dynamically by renderResult() -->
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ── State ──────────────────────────────────────────────────────────────────
+let ws = null, currentTaskId = null, uploadedFileKey = null;
+let eventCount = 0, correctionCount = 0;
+let taskHistory = [];
+
+// ── Clock ──────────────────────────────────────────────────────────────────
+setInterval(() => {
+  document.getElementById('time-display').textContent =
+    new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit'});
+}, 1000);
+
+// ── Health check ───────────────────────────────────────────────────────────
+async function checkHealth() {
+  const base = document.getElementById('api-url').value;
+  try {
+    const d = await (await fetch(`${base}/health`)).json();
+    const dot = document.getElementById('agent-dot');
+    const st  = document.getElementById('agent-status');
+    if (d.agent_ready) { dot.className='dot green'; st.textContent='agent ready'; }
+    else               { dot.className='dot yellow'; st.textContent='initializing'; }
+  } catch {
+    document.getElementById('agent-dot').className='dot red';
+    document.getElementById('agent-status').textContent='offline';
+  }
+}
+setInterval(checkHealth, 5000); checkHealth();
+
+// ── File upload ────────────────────────────────────────────────────────────
+document.getElementById('file-input').addEventListener('change', async e => {
+  if (e.target.files[0]) await uploadFile(e.target.files[0]);
+});
+const dropZone = document.getElementById('file-drop');
+dropZone.addEventListener('dragover',  e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+dropZone.addEventListener('drop', async e => {
+  e.preventDefault(); dropZone.classList.remove('dragover');
+  if (e.dataTransfer.files[0]) await uploadFile(e.dataTransfer.files[0]);
+});
+
+async function uploadFile(file) {
+  const base = document.getElementById('api-url').value;
+  document.getElementById('file-label').textContent = `Uploading ${file.name}...`;
+  const fd = new FormData(); fd.append('file', file);
+  try {
+    const d = await (await fetch(`${base}/upload`, { method:'POST', body:fd })).json();
+    uploadedFileKey = d.file_key;
+    document.getElementById('file-label').textContent = `✓ ${file.name} (${d.preview?.shape?.[0] ?? '?'} rows)`;
+    showToast(`Uploaded — key: ${d.file_key}`, 'success');
+  } catch(err) {
+    document.getElementById('file-label').textContent = 'Upload failed';
+    showToast('Upload failed: ' + err.message, 'error');
+  }
+}
+
+// ── Start analysis ─────────────────────────────────────────────────────────
+async function startAnalysis() {
+  const base = document.getElementById('api-url').value;
+  const goal = document.getElementById('goal-input').value.trim();
+  if (!goal) { showToast('Please enter an analysis goal', 'error'); return; }
+
+  clearStream();
+  document.getElementById('result-section').classList.remove('visible');
+
+  const btn = document.getElementById('run-btn');
+  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>Starting...';
+
+  const body = { goal };
+  if (uploadedFileKey) body.file_key = uploadedFileKey;
+
+  try {
+    const d = await (await fetch(`${base}/analyze`, {
+      method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body),
+    })).json();
+    currentTaskId = d.task_id;
+    document.getElementById('task-id-badge').textContent = `#${currentTaskId}`;
+    addToHistory(currentTaskId, goal, 'running');
+    connectWebSocket(base, currentTaskId);
+  } catch(err) {
+    showToast('Failed to start: ' + err.message, 'error');
+    btn.disabled = false; btn.innerHTML = '▶ &nbsp;Run Analysis';
+  }
+}
+
+// ── WebSocket ──────────────────────────────────────────────────────────────
+function connectWebSocket(base, taskId) {
+  ws = new WebSocket(base.replace('http', 'ws') + `/ws/${taskId}`);
+  ws.onopen = () => {
+    document.getElementById('ws-dot').className = 'dot green';
+    document.getElementById('ws-status').textContent = `ws:${taskId}`;
+    setStreamStatus('connected'); setProgress('running', 15);
+  };
+  ws.onmessage = e => handleEvent(JSON.parse(e.data));
+  ws.onclose = () => {
+    document.getElementById('ws-dot').className = 'dot';
+    document.getElementById('ws-status').textContent = 'disconnected';
+    document.getElementById('run-btn').disabled = false;
+    document.getElementById('run-btn').innerHTML = '▶ &nbsp;Run Analysis';
+  };
+  ws.onerror = () => showToast('WebSocket error', 'error');
+}
+
+// ── Event handler ──────────────────────────────────────────────────────────
+const eventConfig = {
+  plan:      { icon:'🧠', label:'PLANNING',   progress:30  },
+  execute:   { icon:'💻', label:'EXECUTING',  progress:60  },
+  correct:   { icon:'🔧', label:'CORRECTING', progress:75  },
+  evaluate:  { icon:'📊', label:'EVALUATING', progress:90  },
+  complete:  { icon:'✅', label:'COMPLETE',   progress:100 },
+  error:     { icon:'❌', label:'ERROR',      progress:null },
+  heartbeat: { icon:'💓', label:'HEARTBEAT',  progress:null },
+};
+
+function handleEvent(evt) {
+  const type = evt.event_type || 'system';
+  const cfg  = eventConfig[type] || { icon:'ℹ️', label:type.toUpperCase(), progress:null };
+
+  eventCount++;
+  document.getElementById('stat-events').textContent = eventCount;
+  if (type === 'correct') { correctionCount++; document.getElementById('stat-corrections').textContent = correctionCount; }
+  if (cfg.progress !== null) setProgress(type, cfg.progress);
+
+  let msg = '';
+  if (evt.data) {
+    if (typeof evt.data === 'string') msg = evt.data;
+    else if (evt.data.message) msg = evt.data.message;
+    else if (evt.data.step)    msg = evt.data.step;
+    else msg = JSON.stringify(evt.data).slice(0, 160);
+  }
+  if (type === 'heartbeat' && !msg) msg = 'ping';
+
+  addEventItem(type, cfg.icon, cfg.label, msg);
+
+  if (type === 'complete') {
+    renderResult(evt.data, 'completed');
+    updateHistory(currentTaskId, 'completed');
+  } else if (type === 'error') {
+    updateHistory(currentTaskId, 'error');
+    showToast('Analysis error: ' + msg, 'error');
+  }
+}
+
+function addEventItem(type, icon, label, msg) {
+  const stream = document.getElementById('event-stream');
+  stream.querySelectorAll('.empty-state').forEach(e => e.remove());
+  const now  = new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  const item = document.createElement('div');
+  item.className = `event-item ${type}`;
+  item.innerHTML = `
+    <span class="event-icon">${icon}</span>
+    <div class="event-meta">
+      <div class="event-type">${label}</div>
+      <div class="event-msg">${msg || '—'}</div>
+    </div>
+    <span class="event-time">${now}</span>`;
+  stream.appendChild(item);
+  stream.scrollTop = stream.scrollHeight;
+}
+
+// ── Rich result renderer ───────────────────────────────────────────────────
+function renderResult(data, status = 'completed') {
+  if (!data) return;
+  setStreamStatus('complete');
+  if (data.total_latency_ms) document.getElementById('stat-latency').textContent = data.total_latency_ms.toLocaleString();
+
+  const conf      = data.confidence_score || 0;
+  const confColor = conf > 0.8 ? 'var(--accent3)' : conf > 0.6 ? 'var(--warn)' : 'var(--error)';
+  const latency   = ((data.total_latency_ms || 0) / 1000).toFixed(1);
+  const findings  = data.key_findings || [];
+  const limits    = Array.isArray(data.limitations) ? data.limitations : (data.limitations ? [data.limitations] : []);
+  const figures   = data.figures || [];
+
+  document.getElementById('confidence-badge').textContent = `confidence: ${Math.round(conf * 100)}%`;
+
+  let html = '';
+
+  // ① Status badge
+  html += `<div class="res-status ${status}">${status === 'completed' ? '✓' : '✕'} ${status.toUpperCase()}</div>`;
+
+  // ② Stats row
+  html += `<div class="res-stats">
+    <div class="res-stat"><div class="res-stat-n" style="color:var(--accent2)">${data.steps_taken||0}</div><div class="res-stat-l">Steps</div></div>
+    <div class="res-stat"><div class="res-stat-n" style="color:var(--warn)">${data.self_corrections||0}</div><div class="res-stat-l">Corrections</div></div>
+    <div class="res-stat"><div class="res-stat-n" style="color:${confColor}">${Math.round(conf*100)}%</div><div class="res-stat-l">Confidence</div></div>
+    <div class="res-stat"><div class="res-stat-n" style="color:var(--accent3)">${latency}s</div><div class="res-stat-l">Time</div></div>
+  </div>`;
+
+  // ③ Executive summary
+  if (data.executive_summary) {
+    html += `<div class="res-card">
+      <div class="res-card-title">Executive Summary</div>
+      <div class="res-summary">${esc(data.executive_summary)}</div>
+    </div>`;
+  }
+
+  // ④ Key findings
+  if (findings.length) {
+    html += `<div class="res-card"><div class="res-card-title">Key Findings (${findings.length})</div>`;
+    findings.forEach((f, i) => {
+      html += `<div class="finding-row">
+        <span class="finding-num">${String(i+1).padStart(2,'0')}</span>
+        <span class="finding-text">${esc(f)}</span>
+      </div>`;
+    });
+    html += `</div>`;
+  }
+
+  // ⑤ Detailed analysis
+  if (data.detailed_analysis) {
+    html += `<div class="res-card">
+      <div class="res-card-title">Detailed Analysis</div>
+      <div class="res-body">${esc(data.detailed_analysis).replace(/\n/g,'<br>')}</div>
+    </div>`;
+  }
+
+  // ⑥ Methodology
+  if (data.methodology) {
+    html += `<div class="res-card">
+      <div class="res-card-title">Methodology</div>
+      <div class="res-body">${esc(data.methodology)}</div>
+    </div>`;
+  }
+
+  // ⑦ Limitations
+  if (limits.length) {
+    html += `<div class="res-card"><div class="res-card-title">Limitations</div>`;
+    limits.forEach(l => { html += `<div class="limitation">⚠ ${esc(l)}</div>`; });
+    html += `</div>`;
+  }
+
+  // ⑧ Figures (base64 images)
+  if (figures.length) {
+    html += `<div class="res-card"><div class="res-card-title">Figures (${figures.length})</div>
+      <div class="figures-grid">`;
+    figures.forEach((fig, i) => {
+      html += `<div class="figure-card">
+        <img class="figure-img" src="data:image/png;base64,${fig}" alt="Figure ${i+1}"/>
+        <div class="figure-label">Figure ${i+1}</div>
+      </div>`;
+    });
+    html += `</div></div>`;
+  }
+
+  // ⑨ Raw JSON (hidden by default)
+  html += `<div class="raw-block" id="raw-json">${esc(JSON.stringify(data, null, 2))}</div>`;
+
+  document.getElementById('result-body').innerHTML = html;
+  document.getElementById('result-section').classList.add('visible');
+  showToast('Analysis complete!', 'success');
+}
+
+function toggleRaw() {
+  const el = document.getElementById('raw-json');
+  if (el) el.classList.toggle('open');
+}
+
+function esc(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ── Progress ───────────────────────────────────────────────────────────────
+function setProgress(label, pct) {
+  document.getElementById('progress-fill').style.width  = pct + '%';
+  document.getElementById('progress-pct').textContent   = pct + '%';
+  document.getElementById('progress-label').textContent = label.toUpperCase();
+}
+function setStreamStatus(s) { document.getElementById('stream-status').textContent = s; }
+
+// ── History ────────────────────────────────────────────────────────────────
+function addToHistory(id, goal, status) { taskHistory.unshift({id,goal,status}); renderHistory(); }
+function updateHistory(id, status) {
+  const t = taskHistory.find(t => t.id === id);
+  if (t) { t.status = status; renderHistory(); }
+}
+function renderHistory() {
+  const el = document.getElementById('task-history');
+  document.getElementById('history-count').textContent = `${taskHistory.length} task${taskHistory.length!==1?'s':''}`;
+  if (!taskHistory.length) {
+    el.innerHTML = '<div style="padding:16px;text-align:center;color:var(--muted);font-size:0.72rem;">No tasks yet</div>';
+    return;
+  }
+  el.innerHTML = taskHistory.map(t => `
+    <div class="history-item" onclick="loadTask('${t.id}')">
+      <span class="history-badge badge-${t.status}">${t.status}</span>
+      <span class="history-goal" title="${t.goal}">${t.goal}</span>
+      <span class="history-id">#${t.id}</span>
+    </div>`).join('');
+}
+
+async function loadTask(id) {
+  const base = document.getElementById('api-url').value;
+  try {
+    const d = await (await fetch(`${base}/task/${id}`)).json();
+    if (d.result) renderResult(d.result, d.status || 'completed');
+    showToast(`Loaded task #${id}`, 'success');
+  } catch { showToast('Could not load task', 'error'); }
+}
+
+// ── Utilities ──────────────────────────────────────────────────────────────
+function clearStream() {
+  eventCount = 0; correctionCount = 0;
+  document.getElementById('stat-events').textContent = '0';
+  document.getElementById('stat-corrections').textContent = '0';
+  document.getElementById('stat-latency').textContent = '—';
+  document.getElementById('event-stream').innerHTML = `
+    <div class="empty-state">
+      <span class="big-icon">🤖</span>
+      <span>Submit a goal to watch the agent think in real-time</span>
+    </div>`;
+  setProgress('Waiting...', 0); setStreamStatus('idle');
+}
+
+function clearAll() {
+  clearStream();
+  document.getElementById('goal-input').value = '';
+  document.getElementById('file-label').textContent = 'Drop CSV / Excel / JSON here';
+  document.getElementById('result-section').classList.remove('visible');
+  uploadedFileKey = null; currentTaskId = null;
+  document.getElementById('task-id-badge').textContent = '';
+  if (ws) { ws.close(); ws = null; }
+}
+
+let toastTimer;
+function showToast(msg, type='success') {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.className = `toast show ${type}`;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 3500);
+}
+</script>
+</body>
+</html>

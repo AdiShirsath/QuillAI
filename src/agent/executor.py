@@ -243,9 +243,6 @@ class Executor:
         # Step 1: Write initial code does not excute it
         code = self._write_code(step, state, data_info)
 
-        print("==============code in executor")
-        print(code)
-
 
         exec_result = None
         self_correction_applied = False
