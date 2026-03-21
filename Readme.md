@@ -2,10 +2,12 @@
 
 An autonomous AI agent that takes a natural language goal and a dataset, plans a multi-step analysis, writes and executes Python code, self-corrects errors, and produces a verified report — with a full scientific evaluation framework.
 
-> **Tested across 4 datasets · 32 tasks · 81% avg confidence · 24 self-corrections tracked**
-> [View full evaluation report](https://AdiShirsath.github.io/QuillAI/results)
+* **Tested across 4 datasets · 32 tasks · 81% avg confidence · 24 self-corrections tracked**
+* [View full evaluation report](https://AdiShirsath.github.io/QuillAI/results)
 
-> Want to see agent in live action please watch the [video](https://drive.google.com/file/d/1ZauemEC6O6DWcXjWtIV8x2GNG00Wao-_/view?usp=drive_link)
+* Want to see agent in action please watch the demo
+
+[![Demo](https://img.youtube.com/vi/T2nJOsYYIxo/0.jpg)](https://youtu.be/T2nJOsYYIxo)
 ---
 
 ## Architecture
