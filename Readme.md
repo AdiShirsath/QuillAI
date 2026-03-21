@@ -5,19 +5,19 @@ An autonomous AI agent that takes a natural language goal and a dataset, plans a
 > **Tested across 4 datasets · 32 tasks · 81% avg confidence · 24 self-corrections tracked**
 > [View full evaluation report](https://AdiShirsath.github.io/QuillAI/results)
 
-> Want to see agent in live action please watch the [video](assets/demo.mov)
+> Want to see agent in live action please watch the [video](https://drive.google.com/file/d/1ZauemEC6O6DWcXjWtIV8x2GNG00Wao-_/view?usp=drive_link)
 ---
 
 ## Architecture
 
-![DataWright Architecture](assets/architecture.svg)
+![QuillAI Architecture](assets/architecture.svg)
 
 ---
 
 ## Key Technical Features
 
 ### Plan-first architecture
-Before executing anything, Lamma creates a structured plan: ordered steps with explicit types (`THINK` / `CODE` / `ANALYZE` / `VALIDATE` / `SUMMARIZE`), rationale for each step, and a dependency graph. This separates thinking from doing.
+Before executing anything, creates a structured plan: ordered steps with explicit types (`THINK` / `CODE` / `ANALYZE` / `VALIDATE` / `SUMMARIZE`), rationale for each step, and a dependency graph. This separates thinking from doing.
 
 ### Self-correction loop
 ```
@@ -90,23 +90,30 @@ Evaluated across **4 datasets · 32 tasks** on March 20, 2026.
 
 ```bash
 # 1. Clone and install
-git clone https://github.com/yourusername/datawright
-cd datawright
-python3.11 -m venv venv && source venv/bin/activate
+git clone https://github.com/yourusername/QuillAI
+cd QuillAI
+
+conda create -n auto_agent python=3.11
+conda activate auto_agent
+
 pip install -r requirements.txt
 
 # 2. Configure
 cp .env.example .env
-# Add OPENAI_API_KEY to .env
+# Add Groq Api Key to .env
 
-# 3. Start Redis (Docker)
-docker run -d -p 6379:6379 redis:alpine
+# 3. Start Redis
+brew services start redis
+# Verify it's running
+redis-cli ping
 
-# 4. Run demo (generates synthetic data automatically)
+# 4. Start API server
+uvicorn src.server.main:app --reload --reload-dir src --log-level info
+
+# 5. Run demo (generates synthetic data automatically)
 python demo.py
 
-# 5. Start API server
-uvicorn src.server.main:app --reload --reload-dir src --log-level info
+
 ```
 
 ---
@@ -115,7 +122,6 @@ uvicorn src.server.main:app --reload --reload-dir src --log-level info
 
 - Hit each endpoint = API + docs: `http://localhost:8000/docs`
 - Just uploade file and goal automatic hits all endpoints =Dashboard: `http://localhost:8000/dashboard`
-- Redis UI: `http://localhost:8001`
 
 --
 
@@ -186,6 +192,5 @@ metrics = evaluator.evaluate(samples, use_ragas=False)
 ## Requirements
 
 - Python 3.11
-- OpenAI API key (`gpt-4o-mini` recommended for cost — ~$0.05 per task)
-- Redis (local or Docker)
+- Redis
 - Groq API key for goal suggester (free at console.groq.com)
