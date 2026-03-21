@@ -126,8 +126,8 @@ python demo.py
 ---
 
 ## API Usage
-For detailed usage of endpoints checkout [API.md](docs/API.md)
 ---
+* For detailed usage of endpoints checkout [API.md](docs/API.md)
 
 ## Quick reference
 
