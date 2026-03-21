@@ -1,28 +1,3 @@
-"""
-goal_suggester.py
-------------------
-Autonomous Goal Suggester for DataWright Agent.
-Uses Groq's FREE API (llama-3.1-70b) — no cost at all.
-
-SETUP:
-1. Sign up free at console.groq.com
-2. Create an API key (takes 30 seconds)
-3. pip install groq pandas gradio
-4. python goal_suggester.py
-
-FREE TIER LIMITS (more than enough):
-- 14,400 requests / day
-- 6,000 tokens / minute
-- Models: llama-3.1-70b, mixtral-8x7b, gemma2-9b
-
-HOW IT WORKS:
-1. You upload a CSV (or paste CSV text)
-2. Script profiles the dataset: column names, types, sample values, stats
-3. Sends that profile to Groq LLM
-4. LLM generates 8 smart, specific analysis goals
-5. You pick one and copy it to use with the agent
-"""
-
 import json
 import os
 import re
@@ -425,10 +400,10 @@ def launch_gradio_ui(api_key: str):
 
         return "\n".join(output_lines), gr.Dropdown(choices=goal_choices, label="Select a goal to copy")
 
-    with gr.Blocks(title="DataWright Goal Suggester", theme=gr.themes.Soft()) as demo:
+    with gr.Blocks(title="QuillAI Goal Suggester", theme=gr.themes.Soft()) as demo:
         gr.Markdown(
             """
-        # ⚡ DataWright — Goal Suggester
+        # ⚡ QuillAI — Goal Suggester
         Upload a CSV dataset and get AI-powered analysis goals using **Groq's free API**.
         """
         )
@@ -483,7 +458,7 @@ def main():
     import argparse
     import sys
 
-    parser = argparse.ArgumentParser(description="DataWright Goal Suggester — Generate analysis goals from any CSV")
+    parser = argparse.ArgumentParser(description="QuillAI Goal Suggester — Generate analysis goals from any CSV")
     parser.add_argument("--csv", type=str, help="Path to CSV file")
     parser.add_argument("--ui", action="store_true", help="Launch Gradio web UI")
     parser.add_argument("--model", type=str, default=GROQ_MODEL, help="Groq model name")
@@ -566,7 +541,7 @@ def main():
         print(f"{'─'*65}")
         print(selected)
         print(f"{'─'*65}")
-        print("\n→ Use this as the 'goal' parameter in your DataWright agent\n")
+        print("\n→ Use this as the 'goal' parameter in your QuillAI agent\n")
 
         # Copy to clipboard if pyperclip available
         try:

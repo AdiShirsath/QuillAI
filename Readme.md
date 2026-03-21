@@ -3,8 +3,9 @@
 An autonomous AI agent that takes a natural language goal and a dataset, plans a multi-step analysis, writes and executes Python code, self-corrects errors, and produces a verified report — with a full scientific evaluation framework.
 
 > **Tested across 4 datasets · 32 tasks · 81% avg confidence · 24 self-corrections tracked**
-> [View full evaluation report →](outputs/eval_report.html)
+> [View full evaluation report](https://AdiShirsath.github.io/QuillAI/results)
 
+> Want to see agent in live action please watch the [video](assets/demo.mov)
 ---
 
 ## Architecture
@@ -85,40 +86,6 @@ Evaluated across **4 datasets · 32 tasks** on March 20, 2026.
 
 ---
 
-## Project Structure
-
-```
-datawright/
-├── configs/
-│   └── settings.py              # Pydantic config from .env
-├── src/
-│   ├── agent/
-│   │   ├── models.py            # AgentState, Plan, Step, StepResult
-│   │   ├── planner.py           # Creates + revises execution plans
-│   │   ├── executor.py          # Runs steps + self-correction loop
-│   │   └── agent.py             # Main orchestrator + event loop
-│   ├── tools/
-│   │   └── code_executor.py     # AST sandbox + exec + figure capture
-│   ├── memory/
-│   │   └── memory_manager.py    # WorkingMemory (Redis) + EpisodicMemory (ChromaDB)
-│   ├── db/
-│   │   └── redis_client.py      # Redis helpers with in-memory fallback
-│   ├── evaluation/
-│   │   └── agent_evaluator.py   # 7-metric scientific evaluation
-│   └── server/
-│       └── main.py              # FastAPI + WebSocket endpoints
-├── goal_suggester.py            # Groq-powered analysis goal generator
-├── demo.py                      # End-to-end demo with synthetic data
-├── run_analysis.py              # CLI: upload + analyze + print results
-├── eval_report.html             # Full evaluation results
-├── Dockerfile
-├── docker-compose.yml
-├── Makefile
-└── requirements.txt
-```
-
----
-
 ## Quick Start
 
 ```bash
@@ -145,34 +112,31 @@ uvicorn src.server.main:app --reload --reload-dir src --log-level info
 ---
 
 ## Services:
-- API + docs: `http://localhost:8000/docs`
+
+- Hit each endpoint = API + docs: `http://localhost:8000/docs`
+- Just uploade file and goal automatic hits all endpoints =Dashboard: `http://localhost:8000/dashboard`
 - Redis UI: `http://localhost:8001`
 
 --
 
 ## API Usage
+For detailed usage of endpoints checkout API.md](docs/API.md)
+---
 
-```bash
-# Upload a file
-curl -X POST http://localhost:8000/upload -F "file=@customers.csv"
-# → {"file_key": "abc12345"}
+## Quick reference
 
-# Start analysis (async)
-curl -X POST http://localhost:8000/analyze \
-  -H "Content-Type: application/json" \
-  -d '{"goal": "Find the top 3 churn drivers and build a model", "file_key": "abc12345"}'
-# → {"task_id": "9e2d7f1a", "websocket_url": "/ws/9e2d7f1a"}
-
-# Poll for results
-curl http://localhost:8000/task/9e2d7f1a
-
-# Or run sync (waits for completion)
-curl -X POST http://localhost:8000/analyze/sync \
-  -H "Content-Type: application/json" \
-  -d '{"goal": "Find the top 3 churn drivers", "file_key": "abc12345"}'
-```
+| Method | Endpoint | What it does |
+|---|---|---|
+| `GET` | `/health` | Check server + Redis status |
+| `POST` | `/upload` | Upload a data file → get `file_key` |
+| `POST` | `/analyze` | Start analysis → get `task_id` (async) |
+| `GET` | `/task/{task_id}` | Check status or get final result |
+| `WS` | `/ws/{task_id}` | Stream live agent events |
+| `POST` | `/analyze/sync` | Run analysis and wait for result |
+| `GET` | `/memory/stats` | Inspect Redis + ChromaDB memory |
 
 ---
+
 
 ## Example Datasets
 
