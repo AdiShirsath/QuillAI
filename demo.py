@@ -61,9 +61,9 @@ async def run_demo():
     print("=" * 70)
 
     # Check API key
-    if not os.getenv("OPENAI_API_KEY"):
-        print("\n⚠️  OPENAI_API_KEY not set.")
-        print("   Copy .env.example → .env and add your key.")
+    if not os.getenv("GROQ_API_KEY"):
+        print("\n⚠️GROQ_API_KEY not set.")
+        print("Copy .env.example → .env and add your key.")
         return
 
     from src.agent.agent import DataAnalysisAgent
