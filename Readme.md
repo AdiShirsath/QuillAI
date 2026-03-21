@@ -67,8 +67,6 @@ Evaluated across **4 datasets · 32 tasks** on March 20, 2026.
 | Tips (seaborn) | 8 | 82% | Fastest avg latency |
 | Titanic | 7 | 78% | Most replanning triggered |
 
-> [Full task-by-task breakdown with figures →](eval_report.html)
-
 ---
 
 ## Tech Stack
@@ -123,7 +121,7 @@ python demo.py
 - Hit each endpoint = API + docs: `http://localhost:8000/docs`
 - Just uploade file and goal automatic hits all endpoints =Dashboard: `http://localhost:8000/dashboard`
 
---
+---
 
 ## API Usage
 For detailed usage of endpoints checkout [API.md](docs/API.md)
