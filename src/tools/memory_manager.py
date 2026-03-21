@@ -1,10 +1,9 @@
-
 import json
 import logging
 import uuid
+from dataclasses import dataclass
 from datetime import datetime
-from typing import Optional, List, Dict, Any
-from dataclasses import dataclass, asdict
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -12,11 +11,12 @@ logger = logging.getLogger(__name__)
 @dataclass
 class MemoryEntry:
     """A single memory — either a finding or a task summary."""
+
     memory_id: str
-    memory_type: str              # "finding", "task_summary", "error_pattern", "approach"
-    content: str                  # The actual memory text
-    metadata: Dict[str, Any]      # task_id, timestamp, confidence, etc.
-    embedding_text: str = ""      # What to embed for similarity search
+    memory_type: str  # "finding", "task_summary", "error_pattern", "approach"
+    content: str  # The actual memory text
+    metadata: Dict[str, Any]  # task_id, timestamp, confidence, etc.
+    embedding_text: str = ""  # What to embed for similarity search
 
 
 class WorkingMemory:
@@ -36,13 +36,11 @@ class WorkingMemory:
         if use_redis:
             try:
                 import redis
+
                 from src.configs.settings import get_settings
+
                 settings = get_settings()
-                self._redis = redis.Redis(
-                    host=settings.redis_host,
-                    port=settings.redis_port,
-                    decode_responses=True
-                )
+                self._redis = redis.Redis(host=settings.redis_host, port=settings.redis_port, decode_responses=True)
                 self._redis.ping()
             except Exception as e:
                 logger.warning(f"Redis unavailable: {e}. Using in-memory dict.")
@@ -52,11 +50,7 @@ class WorkingMemory:
         """Store a value in working memory."""
         if self.use_redis and self._redis:
             try:
-                self._redis.setex(
-                    f"agent:{self.task_id}:{key}",
-                    3600,  # 1 hour TTL
-                    json.dumps(value, default=str)
-                )
+                self._redis.setex(f"agent:{self.task_id}:{key}", 3600, json.dumps(value, default=str))  # 1 hour TTL
                 return
             except Exception:
                 pass
@@ -102,8 +96,6 @@ class WorkingMemory:
         return dict(self._store)
 
 
-
-
 class EpisodicMemory:
     """
     Long-term memory that persists across tasks.
@@ -128,10 +120,10 @@ class EpisodicMemory:
         """Initialize ChromaDB collection for episodic memory."""
         try:
             import chromadb
+
             client = chromadb.PersistentClient(path=self._persist_dir)
             self._collection = client.get_or_create_collection(
-                name="agent_episodic_memory",
-                metadata={"hnsw:space": "cosine"}
+                name="agent_episodic_memory", metadata={"hnsw:space": "cosine"}
             )
             logger.info(f"Episodic memory loaded: {self._collection.count()} entries")
         except Exception as e:
@@ -145,11 +137,13 @@ class EpisodicMemory:
             self._collection.add(
                 ids=[entry.memory_id],
                 documents=[entry.content],
-                metadatas=[{
-                    "memory_type": entry.memory_type,
-                    "timestamp": datetime.utcnow().isoformat(),
-                    **{k: str(v) for k, v in entry.metadata.items()}
-                }],
+                metadatas=[
+                    {
+                        "memory_type": entry.memory_type,
+                        "timestamp": datetime.utcnow().isoformat(),
+                        **{k: str(v) for k, v in entry.metadata.items()},
+                    }
+                ],
             )
         except Exception as e:
             logger.warning(f"Failed to store memory: {e}")
@@ -173,12 +167,14 @@ class EpisodicMemory:
             memories = []
             for i, doc in enumerate(results["documents"][0]):
                 meta = results["metadatas"][0][i]
-                memories.append(MemoryEntry(
-                    memory_id=results["ids"][0][i],
-                    memory_type=meta.get("memory_type", "unknown"),
-                    content=doc,
-                    metadata=meta,
-                ))
+                memories.append(
+                    MemoryEntry(
+                        memory_id=results["ids"][0][i],
+                        memory_type=meta.get("memory_type", "unknown"),
+                        content=doc,
+                        metadata=meta,
+                    )
+                )
             return memories
         except Exception as e:
             logger.warning(f"Memory recall failed: {e}")
@@ -186,35 +182,40 @@ class EpisodicMemory:
 
     def remember_task(self, task_id: str, goal: str, summary: str, key_findings: List[str]):
         """Store a completed task summary in episodic memory."""
-        content = f"TASK: {goal}\n\nSUMMARY: {summary}\n\nKEY FINDINGS:\n" + \
-                  "\n".join(f"- {f}" for f in key_findings)
+        content = f"TASK: {goal}\n\nSUMMARY: {summary}\n\nKEY FINDINGS:\n" + "\n".join(f"- {f}" for f in key_findings)
 
-        self.remember(MemoryEntry(
-            memory_id=f"task_{task_id}",
-            memory_type="task_summary",
-            content=content,
-            metadata={"task_id": task_id, "goal": goal[:100]},
-        ))
+        self.remember(
+            MemoryEntry(
+                memory_id=f"task_{task_id}",
+                memory_type="task_summary",
+                content=content,
+                metadata={"task_id": task_id, "goal": goal[:100]},
+            )
+        )
 
     def remember_successful_approach(self, task_id: str, description: str, code: str):
         """Store a code pattern that successfully solved a problem."""
         content = f"APPROACH: {description}\n\nCODE:\n{code[:500]}"
-        self.remember(MemoryEntry(
-            memory_id=f"approach_{uuid.uuid4().hex[:8]}",
-            memory_type="approach",
-            content=content,
-            metadata={"task_id": task_id, "description": description[:100]},
-        ))
+        self.remember(
+            MemoryEntry(
+                memory_id=f"approach_{uuid.uuid4().hex[:8]}",
+                memory_type="approach",
+                content=content,
+                metadata={"task_id": task_id, "description": description[:100]},
+            )
+        )
 
     def remember_error_pattern(self, error_type: str, context: str, resolution: str):
         """Store an error and its fix for future reference."""
         content = f"ERROR TYPE: {error_type}\nCONTEXT: {context}\nRESOLUTION: {resolution}"
-        self.remember(MemoryEntry(
-            memory_id=f"error_{uuid.uuid4().hex[:8]}",
-            memory_type="error_pattern",
-            content=content,
-            metadata={"error_type": error_type},
-        ))
+        self.remember(
+            MemoryEntry(
+                memory_id=f"error_{uuid.uuid4().hex[:8]}",
+                memory_type="error_pattern",
+                content=content,
+                metadata={"error_type": error_type},
+            )
+        )
 
     def get_relevant_context(self, goal: str, data_description: str) -> str:
         """
@@ -232,4 +233,3 @@ class EpisodicMemory:
             lines.append(f"\n[{m.memory_type.upper()}] {m.content[:300]}...")
 
         return "\n".join(lines)
-

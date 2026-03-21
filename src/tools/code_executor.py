@@ -1,35 +1,62 @@
 import ast
-import base64 # Capturing matplotlib figures (converted to base64 PNG)
+import base64  # Capturing matplotlib figures (converted to base64 PNG)
 import contextlib
 import io
 import logging
 import signal
-import sys
 import textwrap
 import time
 import traceback
 from dataclasses import dataclass, field
-from typing import List, Dict, Any, Optional
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
 
 # Imports that are dangerous in sandboxed environments
 BLOCKED_IMPORTS = {
-    "os", "sys", "subprocess", "shutil", "socket",
-    "urllib", "requests", "httpx", "ftplib", "smtplib",
-    "pickle", "shelve", "importlib", "__import__",
-    "eval", "exec", "compile", "open",  # file system
+    "os",
+    "sys",
+    "subprocess",
+    "shutil",
+    "socket",
+    "urllib",
+    "requests",
+    "httpx",
+    "ftplib",
+    "smtplib",
+    "pickle",
+    "shelve",
+    "importlib",
+    "__import__",
+    "eval",
+    "exec",
+    "compile",
+    "open",  # file system
 }
 
 # Safe imports that data analysis code needs
 ALLOWED_IMPORTS = {
-    "pandas", "numpy", "matplotlib", "seaborn", "scipy",
-    "sklearn", "plotly", "statsmodels", "json", "math",
-    "datetime", "collections", "itertools", "functools",
-    "re", "string", "random", "statistics", "warnings",
+    "pandas",
+    "numpy",
+    "matplotlib",
+    "seaborn",
+    "scipy",
+    "sklearn",
+    "plotly",
+    "statsmodels",
+    "json",
+    "math",
+    "datetime",
+    "collections",
+    "itertools",
+    "functools",
+    "re",
+    "string",
+    "random",
+    "statistics",
+    "warnings",
 }
-
 
 
 @dataclass
@@ -38,13 +65,14 @@ class ExecutionResult:
     Full result of a code execution attempt.
     Captures everything: output, figures, errors, timing.
     """
+
     success: bool
-    stdout: str = ""                              # printed text output
-    stderr: str = ""                              # error output
-    error: Optional[str] = None                   # formatted error message
-    error_type: Optional[str] = None              # e.g. "KeyError", "TypeError"
-    error_line: Optional[int] = None              # line number of error
-    figures: List[str] = field(default_factory=list)    # base64 PNG strings
+    stdout: str = ""  # printed text output
+    stderr: str = ""  # error output
+    error: Optional[str] = None  # formatted error message
+    error_type: Optional[str] = None  # e.g. "KeyError", "TypeError"
+    error_line: Optional[int] = None  # line number of error
+    figures: List[str] = field(default_factory=list)  # base64 PNG strings
     dataframes: List[Dict] = field(default_factory=list)  # {name, html, shape}
     variables: Dict[str, Any] = field(default_factory=dict)  # captured variables
     execution_time_ms: float = 0.0
@@ -69,11 +97,13 @@ class CodeExecutor:
         if use_e2b:
             try:
                 from e2b_code_interpreter import Sandbox
+
                 self.E2BSandbox = Sandbox
                 logger.info("E2B cloud sandbox enabled")
             except ImportError:
                 logger.warning("e2b-code-interpreter not installed. Falling back to local sandbox.")
                 self.use_e2b = False
+
     # decide to use e2b or local
     def execute(
         self,
@@ -128,7 +158,6 @@ class CodeExecutor:
 
         return True, ""
 
-
     def _execute_local(
         self,
         code: str,
@@ -155,9 +184,10 @@ class CodeExecutor:
 
         # Build execution namespace
         # We inject safe versions of common modules
-        import pandas as pd
-        import numpy as np
         import matplotlib
+        import numpy as np
+        import pandas as pd
+
         matplotlib.use("Agg")  # Non-interactive backend
         import matplotlib.pyplot as plt
         import seaborn as sns
@@ -180,6 +210,7 @@ class CodeExecutor:
         try:
             import scipy
             from scipy import stats
+
             namespace["scipy"] = scipy
             namespace["stats"] = stats
         except ImportError:
@@ -187,32 +218,37 @@ class CodeExecutor:
 
         # Inject sklearn submodules directly
         try:
-            from sklearn.model_selection import train_test_split
-            from sklearn.linear_model import LogisticRegression, LinearRegression
             from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
-            from sklearn.preprocessing import StandardScaler, LabelEncoder
+            from sklearn.linear_model import LinearRegression, LogisticRegression
             from sklearn.metrics import (
-                accuracy_score, classification_report,
-                confusion_matrix, mean_squared_error, r2_score
+                accuracy_score,
+                classification_report,
+                confusion_matrix,
+                mean_squared_error,
+                r2_score,
             )
+            from sklearn.model_selection import train_test_split
             from sklearn.pipeline import Pipeline
+            from sklearn.preprocessing import LabelEncoder, StandardScaler
 
-            namespace.update({
-                "sklearn": __import__("sklearn"),
-                "train_test_split": train_test_split,
-                "LogisticRegression": LogisticRegression,
-                "LinearRegression": LinearRegression,
-                "RandomForestClassifier": RandomForestClassifier,
-                "RandomForestRegressor": RandomForestRegressor,
-                "StandardScaler": StandardScaler,
-                "LabelEncoder": LabelEncoder,
-                "accuracy_score": accuracy_score,
-                "classification_report": classification_report,
-                "confusion_matrix": confusion_matrix,
-                "mean_squared_error": mean_squared_error,
-                "r2_score": r2_score,
-                "Pipeline": Pipeline,
-            })
+            namespace.update(
+                {
+                    "sklearn": __import__("sklearn"),
+                    "train_test_split": train_test_split,
+                    "LogisticRegression": LogisticRegression,
+                    "LinearRegression": LinearRegression,
+                    "RandomForestClassifier": RandomForestClassifier,
+                    "RandomForestRegressor": RandomForestRegressor,
+                    "StandardScaler": StandardScaler,
+                    "LabelEncoder": LabelEncoder,
+                    "accuracy_score": accuracy_score,
+                    "classification_report": classification_report,
+                    "confusion_matrix": confusion_matrix,
+                    "mean_squared_error": mean_squared_error,
+                    "r2_score": r2_score,
+                    "Pipeline": Pipeline,
+                }
+            )
         except ImportError:
             pass
 
@@ -227,18 +263,19 @@ class CodeExecutor:
                     safe_context[key] = val
             namespace.update(safe_context)
 
-
         # Capture stdout
         stdout_capture = io.StringIO()
         figures = []
         dataframes = []
 
         # Add figure-capture wrapper
-        preamble = textwrap.dedent("""
+        preamble = textwrap.dedent(
+            """
         import warnings
         warnings.filterwarnings('ignore')
         # Auto-capture: any plt.show() will be intercepted
-        """)
+        """
+        )
 
         full_code = preamble + "\n" + code
 
@@ -249,11 +286,11 @@ class CodeExecutor:
 
             # Capture any open matplotlib figures
             import matplotlib.pyplot as plt
+
             for fig_num in plt.get_fignums():
                 fig = plt.figure(fig_num)
                 buf = io.BytesIO()
-                fig.savefig(buf, format="png", dpi=120, bbox_inches="tight",
-                           facecolor="white")
+                fig.savefig(buf, format="png", dpi=120, bbox_inches="tight", facecolor="white")
                 buf.seek(0)
                 figures.append(base64.b64encode(buf.read()).decode("utf-8"))
                 plt.close(fig)
@@ -263,13 +300,15 @@ class CodeExecutor:
                 if var_name.startswith("_"):
                     continue
                 if isinstance(val, pd.DataFrame) and len(val) > 0:
-                    dataframes.append({
-                        "name": var_name,
-                        "shape": list(val.shape),
-                        "columns": list(val.columns),
-                        "data": val.head(20).to_dict(orient="records"),
-                        "html": val.head(10).to_html(classes="dataframe", border=0),
-                    })
+                    dataframes.append(
+                        {
+                            "name": var_name,
+                            "shape": list(val.shape),
+                            "columns": list(val.columns),
+                            "data": val.head(20).to_dict(orient="records"),
+                            "html": val.head(10).to_html(classes="dataframe", border=0),
+                        }
+                    )
 
             # Capture requested variables
             captured_vars = {}
@@ -318,29 +357,75 @@ class CodeExecutor:
                 code_executed=code,
             )
 
-
     def _safe_builtins(self) -> dict:
         """Return a safe subset of Python builtins."""
         safe = [
-            "abs", "all", "any", "bin", "bool", "bytes", "callable",
-            "chr", "dict", "dir", "divmod", "enumerate", "filter",
-            "float", "format", "frozenset", "getattr", "hasattr",
-            "hash", "help", "hex", "id", "int", "isinstance",
-            "issubclass", "iter", "len", "list", "map", "max",
-            "min", "next", "oct", "ord", "pow", "print", "range",
-            "repr", "reversed", "round", "set", "setattr", "slice",
-            "sorted", "str", "sum", "super", "tuple", "type",
-            "vars", "zip", "True", "False", "None",
+            "abs",
+            "all",
+            "any",
+            "bin",
+            "bool",
+            "bytes",
+            "callable",
+            "chr",
+            "dict",
+            "dir",
+            "divmod",
+            "enumerate",
+            "filter",
+            "float",
+            "format",
+            "frozenset",
+            "getattr",
+            "hasattr",
+            "hash",
+            "help",
+            "hex",
+            "id",
+            "int",
+            "isinstance",
+            "issubclass",
+            "iter",
+            "len",
+            "list",
+            "map",
+            "max",
+            "min",
+            "next",
+            "oct",
+            "ord",
+            "pow",
+            "print",
+            "range",
+            "repr",
+            "reversed",
+            "round",
+            "set",
+            "setattr",
+            "slice",
+            "sorted",
+            "str",
+            "sum",
+            "super",
+            "tuple",
+            "type",
+            "vars",
+            "zip",
+            "True",
+            "False",
+            "None",
         ]
         import builtins
 
-        results ={name: getattr(builtins, name) for name in safe if hasattr(builtins, name)}
+        results = {name: getattr(builtins, name) for name in safe if hasattr(builtins, name)}
         results["__import__"] = builtins.__import__
 
         return results
+
     @contextlib.contextmanager
     def _timeout(self, seconds: int):
         """Context manager for execution timeout using SIGALRM (Unix only)."""
+
         def handler(signum, frame):
             raise TimeoutError(f"Execution exceeded {seconds}s limit")
 
@@ -349,7 +434,7 @@ class CodeExecutor:
             signal.alarm(seconds)
             yield
         except AttributeError:
-             yield
+            yield
         finally:
             try:
                 signal.alarm(0)
@@ -359,7 +444,8 @@ class CodeExecutor:
     def _extract_error_line(self, traceback_str: str) -> Optional[int]:
         """Extract the line number from a traceback string."""
         import re
-        matches = re.findall(r'line (\d+)', traceback_str)
+
+        matches = re.findall(r"line (\d+)", traceback_str)
         if matches:
             return int(matches[-1])
         return None
@@ -425,10 +511,10 @@ class CodeExecutor:
     def _build_data_injection_code(self, data_context: Dict) -> str:
         """Serialize DataFrames to CSV strings for injection into E2B sandbox."""
         import pandas as pd
+
         lines = ["import pandas as pd", "import io"]
         for name, val in data_context.items():
             if isinstance(val, pd.DataFrame):
                 csv_str = val.to_csv(index=False).replace("'", "\\'")
                 lines.append(f"{name} = pd.read_csv(io.StringIO('''{csv_str}'''))")
         return "\n".join(lines)
-

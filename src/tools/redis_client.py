@@ -7,7 +7,7 @@ Import get_redis() and the helpers into any file that needs them.
 
 import json
 import logging
-from typing import Optional, Dict
+from typing import Dict, Optional
 
 import redis as redis_lib
 
@@ -40,6 +40,7 @@ _fallback_files: Dict[str, str] = {}
 
 # ─── TASK HELPERS ─────────────────────────────────────────────────────────────
 
+
 def task_set(r: Optional[redis_lib.Redis], task_id: str, data: dict, ttl: int = 7200):
     value = json.dumps(data, default=str)
     if r:
@@ -64,6 +65,7 @@ def task_count(r: Optional[redis_lib.Redis]) -> int:
 
 
 # ─── FILE HELPERS ─────────────────────────────────────────────────────────────
+
 
 def file_set(r: Optional[redis_lib.Redis], file_key: str, file_path: str, ttl: int = 3600):
     if r:

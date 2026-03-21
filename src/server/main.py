@@ -1,36 +1,31 @@
-
 import asyncio
-import json
 import logging
-import os
 import tempfile
 import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Optional, Dict, Any, List
+from typing import Any, Dict, List, Optional
 
 import pandas as pd
-from fastapi import FastAPI, HTTPException, UploadFile, File, WebSocket, WebSocketDisconnect
+import uvicorn
+from fastapi import FastAPI, File, HTTPException, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
-import uvicorn
 
-from src.configs.settings import get_settings
 from src.agent.agent import DataAnalysisAgent
-from src.tools.agent_evaluator import AgentEvaluator
-from src.tools.redis_client import (                                  # ← new import
+from src.configs.settings import get_settings
+from src.server.ui_pages import ui_router  # ← all UI page routes
+from src.tools.redis_client import (  # ← new import
+    file_get,
+    file_set,
     get_redis,
-    task_set, task_get, task_update, task_count,
-    file_set, file_get,
+    task_count,
+    task_get,
+    task_set,
+    task_update,
 )
 
-from src.server.ui_pages import ui_router          # ← all UI page routes
-
-
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s | %(levelname)s | %(name)s | %(message)s"
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)s | %(name)s | %(message)s")
 logger = logging.getLogger(__name__)
 settings = get_settings()
 
@@ -84,8 +79,8 @@ app.add_middleware(
 app.include_router(ui_router)
 
 
-
 # ─── REQUEST SCHEMAS ──────────────────────────────────────────────────────────
+
 
 class AnalyzeRequest(BaseModel):
     goal: str = Field(..., min_length=10, description="What you want to analyze")
@@ -106,8 +101,8 @@ class EvalRequest(BaseModel):
     run_name: str = Field("api_eval", description="Name for this eval run")
 
 
-
 # ─── WEBSOCKET MANAGER ────────────────────────────────────────────────────────
+
 
 class ConnectionManager:
     """Manages WebSocket connections for streaming agent events."""
@@ -136,6 +131,7 @@ manager = ConnectionManager()
 
 # ─── ENDPOINTS ────────────────────────────────────────────────────────────────
 
+
 @app.get("/health")
 async def health():
     redis_status = "unavailable"
@@ -153,6 +149,7 @@ async def health():
         "active_connections": len(manager.active),
         "tasks_in_memory": task_count(_redis),
     }
+
 
 @app.post("/upload")
 async def upload_file(file: UploadFile = File(...)):
@@ -220,12 +217,11 @@ async def start_analysis(request: AnalyzeRequest):
 
     elif request.sample_data:
         import io
+
         df = pd.read_csv(io.StringIO(request.sample_data))
 
     # Run agent in background
-    asyncio.create_task(
-        _run_agent_task(task_id, request.goal, file_path, df)
-    )
+    asyncio.create_task(_run_agent_task(task_id, request.goal, file_path, df))
 
     return {
         "task_id": task_id,
@@ -283,11 +279,13 @@ async def websocket_endpoint(websocket: WebSocket, task_id: str):
         # If task already done, send final result immediately
         task = task_get(_redis, task_id) or {}
         if task.get("status") == "completed" and "result" in task:
-            await websocket.send_json({
-                "event_type": "complete",
-                "data": task["result"],
-                "replayed": True,
-            })
+            await websocket.send_json(
+                {
+                    "event_type": "complete",
+                    "data": task["result"],
+                    "replayed": True,
+                }
+            )
             return
 
         # Keep connection alive until task completes
@@ -326,6 +324,7 @@ async def analyze_sync(request: AnalyzeRequest):
         file_path = file_get(_redis, request.file_key)
     elif request.sample_data:
         import io
+
         df = pd.read_csv(io.StringIO(request.sample_data))
 
     report = await _agent.run(
@@ -382,4 +381,3 @@ async def memory_stats():
 
 if __name__ == "__main__":
     uvicorn.run("src.api.main:app", host=settings.api_host, port=settings.api_port, reload=True)
-

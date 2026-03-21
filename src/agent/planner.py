@@ -1,18 +1,13 @@
 import json
 import logging
 import re
-import uuid
 from typing import Optional
 
-from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_groq import ChatGroq
 
+from src.agent.models import AgentState, DataContext, Plan, Step, StepStatus, StepType
 from src.configs.settings import get_settings
-from src.agent.models import (
-    Plan, Step, StepType, StepStatus,
-    DataContext, AgentState
-)
 
 logger = logging.getLogger(__name__)
 
@@ -93,25 +88,27 @@ class Planner:
     """
 
     def __init__(self):
-        self.settings= get_settings()
-        self.llm =  ChatGroq(
+        self.settings = get_settings()
+        self.llm = ChatGroq(
             model=self.settings.planner_model,
-            temperature=0.0, # this makes model consistent
+            temperature=0.0,  # this makes model consistent
             api_key=self.settings.groq_api_key,
         )
 
-        self.initial_prompt = ChatPromptTemplate.from_messages([
-            ("system" , PLANNER_SYSTEM),
-            ("human", PLANNER_HUMAN),
-        ])
-        self.replan_prompt = ChatPromptTemplate.from_messages([
-            ("system", REPLANNER_SYSTEM),
-            ("human", REPLANNER_HUMAN),
-        ])
+        self.initial_prompt = ChatPromptTemplate.from_messages(
+            [
+                ("system", PLANNER_SYSTEM),
+                ("human", PLANNER_HUMAN),
+            ]
+        )
+        self.replan_prompt = ChatPromptTemplate.from_messages(
+            [
+                ("system", REPLANNER_SYSTEM),
+                ("human", REPLANNER_HUMAN),
+            ]
+        )
 
-
-
-    def create_plan(self, goal: str, data_context:Optional[DataContext]= None) -> Plan:
+    def create_plan(self, goal: str, data_context: Optional[DataContext] = None) -> Plan:
         """
         Create initial execution plan.
 
@@ -125,17 +122,12 @@ class Planner:
         logger.info(f"Creating plan for goal: {goal[:80]}...")
         data_desc = self._format_data_context(data_context)
 
-        response = self.llm.invoke(
-            self.initial_prompt.format_messages(
-                goal=goal,
-                data_context=data_desc
-            )
-        )
+        response = self.llm.invoke(self.initial_prompt.format_messages(goal=goal, data_context=data_desc))
 
         plan = self._parse_plan_response(response.content, goal)
-        plan_len =len(plan.steps)
-        estimated_complexity =plan.estimated_complexity
-        requires_clarification =plan.requires_clarification
+        plan_len = len(plan.steps)
+        estimated_complexity = plan.estimated_complexity
+        requires_clarification = plan.requires_clarification
         logger.info(
             f"Plan created: {plan_len} steps, "
             f"complexity={estimated_complexity}, "
@@ -174,7 +166,6 @@ class Planner:
         return revised_plan
 
     def assess_if_replan_needed(self, state: AgentState, last_result) -> tuple[bool, str]:
-
         """
         Decide if the current plan is still valid after a step result.
 
@@ -188,11 +179,14 @@ class Planner:
 
         # too many errors in row
         recent_results = state.step_results[-3:] if len(state.step_results) >= 3 else state.step_results
-        recent_failures = sum(1 for r in recent_results if r.status.value== "failed")
+        recent_failures = sum(1 for r in recent_results if r.status.value == "failed")
 
         # if recent failures more than 2 worng approch
         if recent_failures >= 2:
-            return True, f"Multiple consecutive failures suggest wrong approach: {[r.error for r in recent_results if r.error]}"
+            return (
+                True,
+                f"Multiple consecutive failures suggest wrong approach: {[r.error for r in recent_results if r.error]}",
+            )
 
         # Very low confidence — findings aren't reliable
         if last_result and last_result.confidence_score < 0.3:
@@ -226,10 +220,10 @@ class Planner:
     def _parse_plan_response(self, response_text: str, goal: str) -> Plan:
 
         # Strip markdown code blocks if present
-        text = re.sub(r'```json\n?|\n?```', '', response_text).strip()
+        text = re.sub(r"```json\n?|\n?```", "", response_text).strip()
 
         # Find JSON object
-        json_match = re.search(r'\{.*\}', text, re.DOTALL)
+        json_match = re.search(r"\{.*\}", text, re.DOTALL)
         if not json_match:
             logger.warning("Could not find JSON in planner response, using fallback plan")
             return self._fallback_plan(goal)
@@ -240,7 +234,7 @@ class Planner:
             logger.warning(f"JSON parse error: {e}, using fallback plan")
             return self._fallback_plan(goal)
 
-       # Build Steps
+        # Build Steps
         steps = []
         for s in data.get("steps", []):
             try:
@@ -260,7 +254,6 @@ class Planner:
             )
             steps.append(step)
 
-
         return Plan(
             goal=goal,
             steps=steps,
@@ -269,7 +262,6 @@ class Planner:
             requires_clarification=data.get("requires_clarification", False),
             clarification_questions=data.get("clarification_questions", []),
         )
-
 
     def _fallback_plan(self, goal: str) -> Plan:
         """
@@ -280,27 +272,30 @@ class Planner:
             reasoning="Fallback plan due to parsing error",
             steps=[
                 Step(
-                    step_id="s1", step_type=StepType.THINK,
+                    step_id="s1",
+                    step_type=StepType.THINK,
                     title="Analyze goal",
                     description=f"Think through how to approach: {goal}",
                     rationale="Need to understand the task before executing",
-                    expected_output="Clear analysis approach"
+                    expected_output="Clear analysis approach",
                 ),
                 Step(
-                    step_id="s2", step_type=StepType.CODE,
+                    step_id="s2",
+                    step_type=StepType.CODE,
                     title="Explore data",
                     description="Load data and perform exploratory analysis",
                     rationale="Need to understand data structure",
                     expected_output="Data summary and initial insights",
-                    depends_on=["s1"]
+                    depends_on=["s1"],
                 ),
                 Step(
-                    step_id="s3", step_type=StepType.SUMMARIZE,
+                    step_id="s3",
+                    step_type=StepType.SUMMARIZE,
                     title="Report findings",
                     description="Summarize all findings",
                     rationale="Deliver answer to user",
                     expected_output="Complete analysis report",
-                    depends_on=["s2"]
+                    depends_on=["s2"],
                 ),
-            ]
+            ],
         )

@@ -1,29 +1,27 @@
-
 import logging
 import time
 import uuid
 from datetime import datetime
-from typing import Optional, Dict, Any, AsyncGenerator, List
 from pathlib import Path
+from typing import AsyncGenerator, Dict, Optional
 
 import pandas as pd
 
-from src.configs.settings import get_settings
-from src.agent.models import (
-    AgentState, AgentStatus, StepStatus, StepType,
-    DataContext, FinalReport, Plan
-)
-from src.agent.planner import Planner
 from src.agent.executor import Executor
-from src.tools.memory_manager import WorkingMemory, EpisodicMemory
+from src.agent.models import AgentState, AgentStatus, DataContext, FinalReport, StepStatus, StepType
+from src.agent.planner import Planner
+from src.configs.settings import get_settings
+from src.tools.memory_manager import EpisodicMemory, WorkingMemory
 
 logger = logging.getLogger(__name__)
 
 
 # ─── AGENT EVENT ──────────────────────────────────────────────────────────────
 
+
 class AgentEvent:
     """An event emitted during agent execution for streaming to UI."""
+
     def __init__(self, event_type: str, data: Dict):
         self.event_type = event_type
         self.data = data
@@ -38,6 +36,7 @@ class AgentEvent:
 
 
 # ─── MAIN AGENT ───────────────────────────────────────────────────────────────
+
 
 class DataAnalysisAgent:
     """
@@ -58,9 +57,7 @@ class DataAnalysisAgent:
         self.settings = get_settings()
         self.planner = Planner()
         self.executor = Executor()
-        self.episodic_memory = EpisodicMemory(
-            persist_dir=self.settings.chroma_persist_dir
-        )
+        self.episodic_memory = EpisodicMemory(persist_dir=self.settings.chroma_persist_dir)
 
     # ─── PUBLIC API ───────────────────────────────────────────────────────────
 
@@ -140,8 +137,7 @@ class DataAnalysisAgent:
         past_context = ""
         if data_context:
             past_context = self.episodic_memory.get_relevant_context(
-                goal=state.goal,
-                data_description=f"{data_context.source} {data_context.columns}"
+                goal=state.goal, data_description=f"{data_context.source} {data_context.columns}"
             )
             if past_context:
                 logger.info("Recalled relevant past experience")
@@ -159,29 +155,35 @@ class DataAnalysisAgent:
         # Handle clarification needed
         if state.plan.requires_clarification:
             state.status = AgentStatus.WAITING_FOR_USER
-            yield AgentEvent("clarification_needed", {
-                "questions": state.plan.clarification_questions,
-                "plan_reasoning": state.plan.reasoning,
-            })
+            yield AgentEvent(
+                "clarification_needed",
+                {
+                    "questions": state.plan.clarification_questions,
+                    "plan_reasoning": state.plan.reasoning,
+                },
+            )
             # In a real system, you'd pause here and wait for user input
             # For now, proceed with best-effort plan
 
-        yield AgentEvent("planning_complete", {
-            "plan": {
-                "steps": [
-                    {
-                        "step_id": s.step_id,
-                        "title": s.title,
-                        "step_type": s.step_type.value,
-                        "rationale": s.rationale,
-                    }
-                    for s in state.plan.steps
-                ],
-                "reasoning": state.plan.reasoning,
-                "complexity": state.plan.estimated_complexity,
-                "past_context_used": bool(past_context),
-            }
-        })
+        yield AgentEvent(
+            "planning_complete",
+            {
+                "plan": {
+                    "steps": [
+                        {
+                            "step_id": s.step_id,
+                            "title": s.title,
+                            "step_type": s.step_type.value,
+                            "rationale": s.rationale,
+                        }
+                        for s in state.plan.steps
+                    ],
+                    "reasoning": state.plan.reasoning,
+                    "complexity": state.plan.estimated_complexity,
+                    "past_context_used": bool(past_context),
+                }
+            },
+        )
 
         # ── PHASE 4: Execution Loop ────────────────────────────────────────────
         state.status = AgentStatus.EXECUTING
@@ -197,14 +199,17 @@ class DataAnalysisAgent:
                 continue
 
             # Emit step start event
-            yield AgentEvent("step_start", {
-                "step_id": step.step_id,
-                "step_type": step.step_type.value,
-                "title": step.title,
-                "description": step.description,
-                "step_number": i + 1,
-                "total_steps": len(state.plan.steps),
-            })
+            yield AgentEvent(
+                "step_start",
+                {
+                    "step_id": step.step_id,
+                    "step_type": step.step_type.value,
+                    "title": step.title,
+                    "description": step.description,
+                    "step_number": i + 1,
+                    "total_steps": len(state.plan.steps),
+                },
+            )
 
             # Execute the step
             result = self.executor.execute_step(
@@ -237,35 +242,39 @@ class DataAnalysisAgent:
                 working_memory.store_step_output(step.step_id, result.interpretation)
 
             # Emit step result event
-            yield AgentEvent("step_complete", {
-                "step_id": step.step_id,
-                "status": result.status.value,
-                "interpretation": result.interpretation,
-                "key_findings": result.key_findings,
-                "confidence_score": result.confidence_score,
-                "self_correction_applied": result.self_correction_applied,
-                "correction_explanation": result.correction_explanation,
-                "has_figures": len(result.figures) > 0,
-                "figures": result.figures,
-                "code_written": result.code_written,
-                "code_output": result.code_output,
-                "latency_ms": result.latency_ms,
-                "error": result.error,
-            })
+            yield AgentEvent(
+                "step_complete",
+                {
+                    "step_id": step.step_id,
+                    "status": result.status.value,
+                    "interpretation": result.interpretation,
+                    "key_findings": result.key_findings,
+                    "confidence_score": result.confidence_score,
+                    "self_correction_applied": result.self_correction_applied,
+                    "correction_explanation": result.correction_explanation,
+                    "has_figures": len(result.figures) > 0,
+                    "figures": result.figures,
+                    "code_written": result.code_written,
+                    "code_output": result.code_output,
+                    "latency_ms": result.latency_ms,
+                    "error": result.error,
+                },
+            )
 
             if result.self_correction_applied:
                 state.status = AgentStatus.SELF_CORRECTING
-                yield AgentEvent("self_correction", {
-                    "step_id": step.step_id,
-                    "explanation": result.correction_explanation,
-                })
+                yield AgentEvent(
+                    "self_correction",
+                    {
+                        "step_id": step.step_id,
+                        "explanation": result.correction_explanation,
+                    },
+                )
                 state.status = AgentStatus.EXECUTING
 
             # Track errors
             if result.status == StepStatus.FAILED:
-                state.errors_encountered.append(
-                    f"Step {step.step_id}: {result.error_type} - {result.error}"
-                )
+                state.errors_encountered.append(f"Step {step.step_id}: {result.error_type} - {result.error}")
 
             # ── ADAPTIVE REPLANNING ────────────────────────────────────────────
             should_replan, reason = self.planner.assess_if_replan_needed(state, result)
@@ -277,27 +286,26 @@ class DataAnalysisAgent:
                 revised_plan = self.planner.replan(state=state, reason=reason)
 
                 # Replace remaining steps with revised steps
-                state.plan.steps = state.plan.steps[:i+1] + revised_plan.steps
+                state.plan.steps = state.plan.steps[: i + 1] + revised_plan.steps
                 state.status = AgentStatus.EXECUTING
 
-                yield AgentEvent("replan_complete", {
-                    "reason": reason,
-                    "new_steps": len(revised_plan.steps),
-                })
+                yield AgentEvent(
+                    "replan_complete",
+                    {
+                        "reason": reason,
+                        "new_steps": len(revised_plan.steps),
+                    },
+                )
 
             # ── STORE IN EPISODIC MEMORY (for successful code) ─────────────────
-            if (result.status == StepStatus.SUCCESS and
-                result.code_written and
-                result.confidence_score > 0.8):
+            if result.status == StepStatus.SUCCESS and result.code_written and result.confidence_score > 0.8:
                 self.episodic_memory.remember_successful_approach(
                     task_id=state.task_id,
                     description=step.description,
                     code=result.code_written,
                 )
 
-            if (result.status == StepStatus.FAILED and
-                result.self_correction_applied and
-                result.correction_explanation):
+            if result.status == StepStatus.FAILED and result.self_correction_applied and result.correction_explanation:
                 self.episodic_memory.remember_error_pattern(
                     error_type=result.error_type or "Unknown",
                     context=step.description[:100],
@@ -321,20 +329,23 @@ class DataAnalysisAgent:
             key_findings=final_report.key_findings,
         )
 
-        yield AgentEvent("complete", {
-            "task_id": state.task_id,
-            "executive_summary": final_report.executive_summary,
-            "key_findings": final_report.key_findings,
-            "detailed_analysis": final_report.detailed_analysis,
-            "methodology": final_report.methodology,
-            "figures": final_report.figures,
-            "tables": final_report.tables,
-            "limitations": final_report.limitations,
-            "confidence_score": final_report.confidence_score,
-            "steps_taken": final_report.steps_taken,
-            "self_corrections": final_report.self_corrections,
-            "total_latency_ms": final_report.total_latency_ms,
-        })
+        yield AgentEvent(
+            "complete",
+            {
+                "task_id": state.task_id,
+                "executive_summary": final_report.executive_summary,
+                "key_findings": final_report.key_findings,
+                "detailed_analysis": final_report.detailed_analysis,
+                "methodology": final_report.methodology,
+                "figures": final_report.figures,
+                "tables": final_report.tables,
+                "limitations": final_report.limitations,
+                "confidence_score": final_report.confidence_score,
+                "steps_taken": final_report.steps_taken,
+                "self_corrections": final_report.self_corrections,
+                "total_latency_ms": final_report.total_latency_ms,
+            },
+        )
 
         working_memory.clear()
 
@@ -393,24 +404,21 @@ class DataAnalysisAgent:
 
     def _dependencies_met(self, step, state: AgentState) -> bool:
         """Check if all steps this step depends on have completed successfully."""
-        completed_ids = {
-            r.step_id for r in state.step_results
-            if r.status == StepStatus.SUCCESS
-        }
+        completed_ids = {r.step_id for r in state.step_results if r.status == StepStatus.SUCCESS}
         return all(dep_id in completed_ids for dep_id in step.depends_on)
 
     def _build_final_report(self, state: AgentState) -> FinalReport:
         """Synthesize all step results into a final structured report."""
-        successful_steps = [
-            r for r in state.step_results
-            if r.status == StepStatus.SUCCESS
-        ]
+        successful_steps = [r for r in state.step_results if r.status == StepStatus.SUCCESS]
 
         # Get the summarize step output if exists
         summary_result = next(
-            (r for r in reversed(state.step_results)
-             if r.step_type == StepType.SUMMARIZE and r.status == StepStatus.SUCCESS),
-            None
+            (
+                r
+                for r in reversed(state.step_results)
+                if r.step_type == StepType.SUMMARIZE and r.status == StepStatus.SUCCESS
+            ),
+            None,
         )
 
         executive_summary = (
@@ -423,8 +431,7 @@ class DataAnalysisAgent:
             summary_result.interpretation
             if summary_result
             else "\n\n".join(
-                f"**{r.step_type.value.title()}**: {r.interpretation}"
-                for r in successful_steps if r.interpretation
+                f"**{r.step_type.value.title()}**: {r.interpretation}" for r in successful_steps if r.interpretation
             )
         )
 
@@ -432,8 +439,11 @@ class DataAnalysisAgent:
             f"The agent executed {len(state.step_results)} steps "
             f"({len(successful_steps)} successful) following an "
             f"{state.plan.estimated_complexity if state.plan else 'medium'}-complexity plan. "
-            + (f"Self-corrections were applied {state.self_corrections_count} time(s). "
-               if state.self_corrections_count > 0 else "")
+            + (
+                f"Self-corrections were applied {state.self_corrections_count} time(s). "
+                if state.self_corrections_count > 0
+                else ""
+            )
         )
 
         limitations = []
@@ -446,8 +456,7 @@ class DataAnalysisAgent:
             limitations.append(f"Could not complete: {fr.step_type.value} ({fr.error_type})")
 
         avg_confidence = (
-            sum(r.confidence_score for r in successful_steps) / len(successful_steps)
-            if successful_steps else 0.5
+            sum(r.confidence_score for r in successful_steps) / len(successful_steps) if successful_steps else 0.5
         )
 
         all_tables = []

@@ -1,18 +1,14 @@
-
 import json
 import logging
 import re
 import time
-from typing import Optional, Dict, Any
+from typing import Any, Dict, Optional
 
-from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_groq import ChatGroq
 
+from src.agent.models import AgentState, Step, StepResult, StepStatus, StepType
 from src.configs.settings import get_settings
-from src.agent.models import (
-    Step, StepType, StepStatus, StepResult, AgentState
-)
 from src.tools.code_executor import CodeExecutor, ExecutionResult
 
 logger = logging.getLogger(__name__)
@@ -157,38 +153,45 @@ class Executor:
 
         self.llm = ChatGroq(
             model=self.settings.executor_model,
-            temperature=0.1, # Slight creativity for code writing
+            temperature=0.1,  # Slight creativity for code writing
             api_key=self.settings.groq_api_key,
         )
 
         self.code_executor = CodeExecutor(
-            timeout_seconds=30,
-            use_e2b=bool(self.settings.e2b_api_key and not self.settings.use_local_sandbox)
+            timeout_seconds=30, use_e2b=bool(self.settings.e2b_api_key and not self.settings.use_local_sandbox)
         )
 
         # Prompts
-        self.code_writer_prompt = ChatPromptTemplate.from_messages([
-            ("system", CODE_WRITER_SYSTEM),
-            ("human", CODE_WRITER_HUMAN),
-        ])
-        self.code_fixer_prompt = ChatPromptTemplate.from_messages([
-            ("system", CODE_FIXER_SYSTEM),
-            ("human", CODE_FIXER_HUMAN),
-        ])
-        self.interpreter_prompt = ChatPromptTemplate.from_messages([
-            ("system", INTERPRETER_SYSTEM),
-            ("human", INTERPRETER_HUMAN),
-        ])
-        self.thinker_prompt = ChatPromptTemplate.from_messages([
-            ("system", THINKER_SYSTEM),
-            ("human", THINKER_HUMAN),
-        ])
+        self.code_writer_prompt = ChatPromptTemplate.from_messages(
+            [
+                ("system", CODE_WRITER_SYSTEM),
+                ("human", CODE_WRITER_HUMAN),
+            ]
+        )
+        self.code_fixer_prompt = ChatPromptTemplate.from_messages(
+            [
+                ("system", CODE_FIXER_SYSTEM),
+                ("human", CODE_FIXER_HUMAN),
+            ]
+        )
+        self.interpreter_prompt = ChatPromptTemplate.from_messages(
+            [
+                ("system", INTERPRETER_SYSTEM),
+                ("human", INTERPRETER_HUMAN),
+            ]
+        )
+        self.thinker_prompt = ChatPromptTemplate.from_messages(
+            [
+                ("system", THINKER_SYSTEM),
+                ("human", THINKER_HUMAN),
+            ]
+        )
 
     def execute_step(
-            self,
-            step: Step,
-            state: AgentState,
-            data_context: Optional[Dict[str, Any]] = None,
+        self,
+        step: Step,
+        state: AgentState,
+        data_context: Optional[Dict[str, Any]] = None,
     ) -> StepResult:
         """
         Execute a single step and return the result.
@@ -198,7 +201,6 @@ class Executor:
         """
         t0 = time.time()
         logger.info(f"Executing step [{step.step_id}] {step.step_type.value}: {step.title}")
-
 
         try:
             if step.step_type == StepType.CODE:
@@ -243,7 +245,6 @@ class Executor:
         # Step 1: Write initial code does not excute it
         code = self._write_code(step, state, data_info)
 
-
         exec_result = None
         self_correction_applied = False
         correction_explanation = ""
@@ -257,8 +258,8 @@ class Executor:
             # in sandbox they are already imported
 
             # Remove all top-level import statements
-            code = re.sub(r'^\s*import .*$', '', code, flags=re.MULTILINE)
-            code = re.sub(r'^\s*from .* import .*$', '', code, flags=re.MULTILINE)
+            code = re.sub(r"^\s*import .*$", "", code, flags=re.MULTILINE)
+            code = re.sub(r"^\s*from .* import .*$", "", code, flags=re.MULTILINE)
             exec_result = self.code_executor.execute(
                 code=code,
                 data_context=data_context,
@@ -270,8 +271,7 @@ class Executor:
             # Step 3: Self-correction
             if attempt < max_retries - 1:
                 logger.info(
-                    f"Step {step.step_id} attempt {attempt+1} failed "
-                    f"({exec_result.error_type}). Self-correcting..."
+                    f"Step {step.step_id} attempt {attempt+1} failed " f"({exec_result.error_type}). Self-correcting..."
                 )
                 fixed_code = self._fix_code(code, exec_result.error, data_info)
                 if fixed_code and fixed_code != code:
@@ -338,7 +338,7 @@ class Executor:
 
         # Strip markdown code fences if present
         code = response.content
-        code = re.sub(r'^```python\n?|^```\n?|\n?```$', '', code, flags=re.MULTILINE).strip()
+        code = re.sub(r"^```python\n?|^```\n?|\n?```$", "", code, flags=re.MULTILINE).strip()
         return code
 
     def _fix_code(self, code: str, error: Optional[str], data_info: str) -> Optional[str]:
@@ -351,7 +351,7 @@ class Executor:
             )
         )
         fixed = response.content
-        fixed = re.sub(r'^```python\n?|^```\n?|\n?```$', '', fixed, flags=re.MULTILINE).strip()
+        fixed = re.sub(r"^```python\n?|^```\n?|\n?```$", "", fixed, flags=re.MULTILINE).strip()
         return fixed if fixed else None
 
     def _interpret_output(
@@ -375,11 +375,14 @@ class Executor:
             )
         )
 
-        return self._parse_json_response(response.content, {
-            "interpretation": output_text,
-            "key_findings": [],
-            "confidence_score": 0.6,
-        })
+        return self._parse_json_response(
+            response.content,
+            {
+                "interpretation": output_text,
+                "key_findings": [],
+                "confidence_score": 0.6,
+            },
+        )
 
     def _execute_think_step(self, step: Step, state: AgentState) -> StepResult:
         """
@@ -406,11 +409,14 @@ class Executor:
             )
         )
 
-        data = self._parse_json_response(response.content, {
-            "output": response.content,
-            "key_findings": [],
-            "confidence_score": 0.7,
-        })
+        data = self._parse_json_response(
+            response.content,
+            {
+                "output": response.content,
+                "key_findings": [],
+                "confidence_score": 0.7,
+            },
+        )
 
         return StepResult(
             step_id=step.step_id,
@@ -420,7 +426,6 @@ class Executor:
             key_findings=data.get("key_findings", []),
             confidence_score=data.get("confidence_score", 0.7),
         )
-
 
     def _format_data_info(
         self,
@@ -437,6 +442,7 @@ class Executor:
                 lines.append(f"Sample:\n{data_context.sample}")
         elif runtime_data:
             import pandas as pd
+
             for name, val in runtime_data.items():
                 if isinstance(val, pd.DataFrame):
                     lines.append(f"DataFrame '{name}': {val.shape}, columns={list(val.columns)}")
@@ -444,14 +450,11 @@ class Executor:
 
     def _parse_json_response(self, text: str, fallback: Dict) -> Dict:
         """Parse JSON from LLM response with fallback."""
-        text = re.sub(r'```json\n?|\n?```', '', text).strip()
-        json_match = re.search(r'\{.*\}', text, re.DOTALL)
+        text = re.sub(r"```json\n?|\n?```", "", text).strip()
+        json_match = re.search(r"\{.*\}", text, re.DOTALL)
         if json_match:
             try:
                 return json.loads(json_match.group())
             except json.JSONDecodeError:
                 pass
         return fallback
-
-
-
