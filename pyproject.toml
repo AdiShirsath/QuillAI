@@ -1,0 +1,64 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "quillai"
+version = "0.1.0"
+requires-python = ">=3.11"
+
+dependencies = [
+    "langchain==0.3.25",
+    "langchain-openai==0.3.16",
+    "langchain-community==0.3.23",
+    "openai==1.75.0",
+    "e2b-code-interpreter==1.0.5",
+
+    "pandas==2.2.3",
+    "numpy==1.26.4",
+    "matplotlib==3.9.2",
+    "seaborn==0.13.2",
+    "scipy==1.13.1",
+    "scikit-learn==1.5.2",
+    "plotly==5.24.1",
+
+    "chromadb==0.6.3",
+    "redis==5.2.1",
+
+    "fastapi==0.115.12",
+    "uvicorn==0.34.0",
+    "pydantic==2.11.3",
+    "pydantic-settings",
+    "python-multipart==0.0.20",
+    "websockets==14.2",
+
+    "deepeval==2.8.5",
+    "rouge-score==0.1.2",
+
+    "langfuse==2.60.2",
+    "structlog==24.4.0",
+
+    "pypdf==5.4.0",
+    "openpyxl==3.1.5",
+    "python-docx==1.1.2",
+
+    "python-dotenv==1.1.0",
+    "tenacity==9.0.0",
+    "httpx==0.28.1",
+    "tiktoken==0.9.0",
+    "rich==13.9.2",
+
+    "langchain-groq",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest==8.3.5",
+    "pytest-asyncio==0.26.0",
+    "ruff",
+    "black",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src*"]
