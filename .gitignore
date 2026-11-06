@@ -6,3 +6,4 @@ data*
 .DS_Store
 assets/demo.mov
 quillai.egg-info*
+audit_log.jsonl

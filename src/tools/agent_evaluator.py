@@ -6,10 +6,9 @@ from datetime import datetime
 from pathlib import Path
 from typing import List, Optional
 
-from langchain_groq import ChatGroq
-
 from src.agent.models import AgentState, FinalReport, StepStatus
 from src.configs.settings import get_settings
+from src.tools.llm_factory import build_llm
 
 logger = logging.getLogger(__name__)
 
@@ -88,11 +87,7 @@ class AgentEvaluator:
         self.results_dir = Path(self.settings.eval_results_dir)
         self.results_dir.mkdir(parents=True, exist_ok=True)
 
-        self.judge_llm = ChatGroq(
-            model=self.settings.evaluator_model,
-            temperature=0.0,  # this makes model consistent
-            api_key=self.settings.groq_api_key,
-        )
+        self.judge_llm = build_llm("evaluator", temperature=0.0)
 
     # ─── PUBLIC API ───────────────────────────────────────────────────────────
 

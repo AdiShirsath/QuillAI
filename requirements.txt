@@ -1,26 +1,28 @@
 # ============================================================
-# Autonomous Data Analysis Agent - Requirements (Compatible)
+# QuillAI — runtime requirements
+# Every package here is imported by src/ or needed by a feature the API exposes.
+# Optional / dev-only extras live in requirements-extra.txt.
 # ============================================================
 
-# Core LLM & Agent Framework
-langchain==0.3.25
-langchain-openai==0.3.16
-langchain-community==0.3.23
-openai==1.75.0
+# LLM & agent framework
+langchain-core==0.3.86
+langchain-groq==0.3.8
+langchain-mistralai==0.2.11
+langchain-google-genai==2.1.12
 
-# Code Execution (sandboxed)
-e2b-code-interpreter==1.0.5
-
-# Data Analysis Tools
+# Data analysis tools (available inside the sandbox)
 pandas==2.2.3
 numpy==1.26.4
 matplotlib==3.9.2
 seaborn==0.13.2
 scipy==1.13.1
 scikit-learn==1.5.2
-plotly==5.24.1
 
-# Memory & State
+# File formats accepted by /upload (.xlsx/.xls and .parquet)
+openpyxl==3.1.5
+pyarrow>=17,<21
+
+# Memory & state
 chromadb==0.6.3
 redis==5.2.1
 
@@ -28,28 +30,17 @@ redis==5.2.1
 fastapi==0.115.12
 uvicorn==0.34.0
 pydantic==2.11.3
+pydantic-settings==2.15.0
 python-multipart==0.0.20
 websockets==14.2
 
-# Evaluation Framework
-deepeval==2.8.5
-rouge-score==0.1.2
-
-# Monitoring & Observability
-langfuse==2.60.2
-structlog==24.4.0
-
-# File Handling
-pypdf==5.4.0
-openpyxl==3.1.5
-python-docx==1.1.2
+# Guardrails (optional LLM layer; enable with ENABLE_NEMO_GUARDRAILS=true)
+nemoguardrails==0.24.1
 
 # Utilities
 python-dotenv==1.1.0
 tenacity==9.0.0
 httpx==0.28.1
-tiktoken==0.9.0
-rich==13.9.2
 
 # Testing
 pytest==8.3.5

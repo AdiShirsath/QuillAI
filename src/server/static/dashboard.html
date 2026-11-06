@@ -376,6 +376,12 @@
 <div class="toast" id="toast"></div>
 
 <script>
+  // Use the server this page was served from (works locally and on Render)
+(function () {
+  var el = document.getElementById('api-url');
+  if (el && location.protocol.indexOf('http') === 0) el.value = location.origin;
+})();
+
 // ── State ──────────────────────────────────────────────────────────────────
 let ws = null, currentTaskId = null, uploadedFileKey = null;
 let eventCount = 0, correctionCount = 0;

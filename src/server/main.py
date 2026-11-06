@@ -15,6 +15,7 @@ from pydantic import BaseModel, Field
 from src.agent.agent import DataAnalysisAgent
 from src.configs.settings import get_settings
 from src.server.ui_pages import ui_router  # ← all UI page routes
+from src.tools.llm_factory import active_model_name
 from src.tools.redis_client import (  # ← new import
     file_get,
     file_set,
@@ -31,6 +32,18 @@ settings = get_settings()
 
 _redis = None
 _agent: Optional[DataAnalysisAgent] = None
+_active_tasks = 0  # analyses currently running (capped by MAX_CONCURRENT_TASKS)
+
+
+def _reserve_slot() -> None:
+    """Claim one analysis slot or answer 429. Protects free-tier CPU/RAM and the Groq rate limit."""
+    global _active_tasks
+    if _active_tasks >= settings.max_concurrent_tasks:
+        raise HTTPException(
+            429,
+            f"Server is busy ({_active_tasks}/{settings.max_concurrent_tasks} analyses running). Try again shortly.",
+        )
+    _active_tasks += 1
 
 
 @asynccontextmanager
@@ -148,6 +161,9 @@ async def health():
         "redis": redis_status,
         "active_connections": len(manager.active),
         "tasks_in_memory": task_count(_redis),
+        "active_analyses": _active_tasks,
+        "model": active_model_name(),
+        "episodic_memory": bool(_agent and _agent.episodic_memory._collection),
     }
 
 
@@ -160,9 +176,12 @@ async def upload_file(file: UploadFile = File(...)):
     if ext not in allowed:
         raise HTTPException(400, f"Unsupported file type: {ext}. Allowed: {allowed}")
 
+    content = await file.read()
+    if len(content) > settings.max_upload_mb * 1024 * 1024:
+        raise HTTPException(413, f"File too large (limit {settings.max_upload_mb} MB)")
+
     # Save to temp file
     tmp = tempfile.NamedTemporaryFile(suffix=ext, delete=False)
-    content = await file.read()
     tmp.write(content)
     tmp.flush()
 
@@ -203,10 +222,7 @@ async def start_analysis(request: AnalyzeRequest):
     if not _agent:
         raise HTTPException(503, "Agent not initialized")
 
-    task_id = str(uuid.uuid4())[:8]
-    task_set(_redis, task_id, {"status": "queued", "goal": request.goal})
-
-    # Resolve file path
+    # Resolve file path (before reserving a slot, so a bad request cannot leak one)
     file_path = None
     df = None
 
@@ -220,9 +236,12 @@ async def start_analysis(request: AnalyzeRequest):
 
         df = pd.read_csv(io.StringIO(request.sample_data))
 
-    # Run agent in background
-    asyncio.create_task(_run_agent_task(task_id, request.goal, file_path, df))
+    _reserve_slot()
+    task_id = str(uuid.uuid4())[:8]
+    task_set(_redis, task_id, {"status": "queued", "goal": request.goal})
 
+    # Run agent in background (releases its slot when finished)
+    asyncio.create_task(_run_agent_task(task_id, request.goal, file_path, df))
     return {
         "task_id": task_id,
         "status": "started",
@@ -238,6 +257,7 @@ async def _run_agent_task(
     df: Optional[pd.DataFrame],
 ):
     """Background coroutine that runs the agent and broadcasts events."""
+    global _active_tasks
     task_update(_redis, task_id, {"status": "running"})
 
     try:
@@ -247,22 +267,23 @@ async def _run_agent_task(
             dataframe=df,
             task_id=task_id,
         ):
-            event_dict = event.to_dict()
-            task_update(_redis, task_id, {"status": "completed", "result": event.data})
-
             # Send to WebSocket if connected
-            await manager.send(task_id, event_dict)
+            await manager.send(task_id, event.to_dict())
 
+            # Only the final "complete" event marks the task completed.
             if event.event_type == "complete":
                 task_update(_redis, task_id, {"status": "completed", "result": event.data})
             elif event.event_type == "error":
                 task_update(_redis, task_id, {"status": "error", "error": event.data})
+            else:
+                task_update(_redis, task_id, {"status": "running", "last_event": event.event_type})
 
     except Exception as e:
-
         task_update(_redis, task_id, {"status": "error", "error": str(e)})
-
         await manager.send(task_id, {"event_type": "error", "data": {"message": str(e)}})
+
+    finally:
+        _active_tasks = max(0, _active_tasks - 1)
 
 
 @app.websocket("/ws/{task_id}")
@@ -322,16 +343,23 @@ async def analyze_sync(request: AnalyzeRequest):
 
     if request.file_key:
         file_path = file_get(_redis, request.file_key)
+        if not file_path:
+            raise HTTPException(404, f"File key '{request.file_key}' not found. Upload file first.")
     elif request.sample_data:
         import io
 
         df = pd.read_csv(io.StringIO(request.sample_data))
 
-    report = await _agent.run(
-        goal=request.goal,
-        file_path=file_path,
-        dataframe=df,
-    )
+    global _active_tasks
+    _reserve_slot()
+    try:
+        report = await _agent.run(
+            goal=request.goal,
+            file_path=file_path,
+            dataframe=df,
+        )
+    finally:
+        _active_tasks = max(0, _active_tasks - 1)
 
     return {
         "task_id": report.task_id,
@@ -380,4 +408,4 @@ async def memory_stats():
 
 
 if __name__ == "__main__":
-    uvicorn.run("src.api.main:app", host=settings.api_host, port=settings.api_port, reload=True)
+    uvicorn.run("src.server.main:app", host=settings.api_host, port=settings.api_port, reload=True)
