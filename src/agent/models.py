@@ -84,6 +84,9 @@ class StepResult:
     confidence_score: float = 0.0  # 0-1, how confident the agent is
     self_correction_applied: bool = False  # Did it fix itself?
     correction_explanation: str = ""
+    # Self-correction trail, sent on the step_complete event
+    original_code: Optional[str] = None
+    corrections: List[Dict] = field(default_factory=list)
 
     # Error handling
     error: Optional[str] = None

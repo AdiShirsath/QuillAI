@@ -419,6 +419,13 @@
 </div>
 
 <script>
+  // Default to the server this page was served from (ws:// locally, wss:// on https hosts).
+(function () {
+  var el = document.getElementById('ws-url');
+  if (el && location.protocol.indexOf('http') === 0)
+    el.value = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws/';
+})();
+
 let socket = null;
 let rxCount = 0, txCount = 0, errCount = 0, msgCount = 0;
 let connStartTime = null;

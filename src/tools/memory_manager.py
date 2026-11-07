@@ -40,7 +40,12 @@ class WorkingMemory:
                 from src.configs.settings import get_settings
 
                 settings = get_settings()
-                self._redis = redis.Redis(host=settings.redis_host, port=settings.redis_port, decode_responses=True)
+                self._redis = redis.Redis(
+                    host=settings.redis_host,
+                    port=settings.redis_port,
+                    decode_responses=True,
+                    socket_connect_timeout=2,  # an unreachable host used to hang for minutes
+                )
                 self._redis.ping()
             except Exception as e:
                 logger.warning(f"Redis unavailable: {e}. Using in-memory dict.")
@@ -111,10 +116,13 @@ class EpisodicMemory:
     for relevant past experience.
     """
 
-    def __init__(self, persist_dir: str = "./data/memory"):
+    def __init__(self, persist_dir: str = "./data/memory", enabled: bool = True):
         self._collection = None
         self._persist_dir = persist_dir
-        self._init_store()
+        if enabled:
+            self._init_store()
+        else:
+            logger.info("Episodic memory disabled (ENABLE_EPISODIC_MEMORY=false)")
 
     def _init_store(self):
         """Initialize ChromaDB collection for episodic memory."""

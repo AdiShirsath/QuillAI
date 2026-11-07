@@ -4,10 +4,10 @@ import re
 from typing import Optional
 
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_groq import ChatGroq
 
 from src.agent.models import AgentState, DataContext, Plan, Step, StepStatus, StepType
 from src.configs.settings import get_settings
+from src.tools.llm_factory import build_llm
 
 logger = logging.getLogger(__name__)
 
@@ -26,13 +26,13 @@ STEP TYPES AVAILABLE:
 - SUMMARIZE: Synthesize all findings into a final report
 
 PLANNING RULES:
-1. Every CODE step must be followed by an ANALYZE step
-2. Complex goals need a THINK step first to formulate approach
-3. Statistical claims need a VALIDATE step
-4. Always end with SUMMARIZE
-5. Keep plans to 5-10 steps — not too shallow, not too verbose
-6. Be specific: "Calculate correlation matrix between numeric columns" not "analyze data"
-7. Each step's rationale must explain WHY, not just WHAT
+1. Complex goals need a THINK step first to formulate approach
+2. Statistical claims need a VALIDATE step
+3. Always end with SUMMARIZE
+4. Keep plans to 5-10 steps — not too shallow, not too verbose
+5. Be specific: "Calculate correlation matrix between numeric columns" not "analyze data"
+6. Each step's rationale must explain WHY, not just WHAT
+7. Each CODE step must be self-contained: it runs in a fresh process with only 'df'. If a later step needs a trained model or split data, do that work in the same step instead of a separate one.
 
 OUTPUT: Respond ONLY with valid JSON matching this exact schema:
 {{
@@ -89,11 +89,7 @@ class Planner:
 
     def __init__(self):
         self.settings = get_settings()
-        self.llm = ChatGroq(
-            model=self.settings.planner_model,
-            temperature=0.0,  # this makes model consistent
-            api_key=self.settings.groq_api_key,
-        )
+        self.llm = build_llm("planner", temperature=0.0)
 
         self.initial_prompt = ChatPromptTemplate.from_messages(
             [

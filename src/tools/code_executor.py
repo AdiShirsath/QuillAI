@@ -1,62 +1,53 @@
-import ast
 import base64  # Capturing matplotlib figures (converted to base64 PNG)
 import contextlib
 import io
 import logging
 import signal
+import sys
 import textwrap
+import threading
 import time
 import traceback
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
+from src.tools.guardrails import (  # noqa: F401  (BLOCKED/ALLOWED_IMPORTS re-exported for compatibility)
+    ALLOWED_IMPORTS,
+    BLOCKED_IMPORTS,
+    check_code,
+    check_code_policy,
+    is_blocked_attr,
+)
+
 logger = logging.getLogger(__name__)
 
 
-# Imports that are dangerous in sandboxed environments
-BLOCKED_IMPORTS = {
-    "os",
-    "sys",
-    "subprocess",
-    "shutil",
-    "socket",
-    "urllib",
-    "requests",
-    "httpx",
-    "ftplib",
-    "smtplib",
-    "pickle",
-    "shelve",
-    "importlib",
-    "__import__",
-    "eval",
-    "exec",
-    "compile",
-    "open",  # file system
-}
+class SandboxTimeout(BaseException):
+    """Raised inside sandboxed code when the time limit is hit.
 
-# Safe imports that data analysis code needs
-ALLOWED_IMPORTS = {
-    "pandas",
-    "numpy",
-    "matplotlib",
-    "seaborn",
-    "scipy",
-    "sklearn",
-    "plotly",
-    "statsmodels",
-    "json",
-    "math",
-    "datetime",
-    "collections",
-    "itertools",
-    "functools",
-    "re",
-    "string",
-    "random",
-    "statistics",
-    "warnings",
-}
+    Deliberately a BaseException (not an Exception): generated code that wraps a loop in
+    `try/except Exception` must not be able to swallow the timeout and keep running.
+    """
+
+
+# Exception classes sandboxed code may catch (LLM-written code uses try/except routinely)
+_SAFE_EXCEPTIONS = (
+    "Exception",
+    "ValueError",
+    "KeyError",
+    "TypeError",
+    "IndexError",
+    "LookupError",
+    "AttributeError",
+    "ArithmeticError",
+    "ZeroDivisionError",
+    "OverflowError",
+    "FloatingPointError",
+    "AssertionError",
+    "RuntimeError",
+    "NotImplementedError",
+    "StopIteration",
+)
 
 
 @dataclass
@@ -110,18 +101,34 @@ class CodeExecutor:
         code: str,
         data_context: Optional[Dict[str, Any]] = None,
         capture_vars: Optional[List[str]] = None,
+        step_id: Optional[str] = None,
     ) -> ExecutionResult:
         """
         Execute Python code in a sandbox.
+
+        Every call passes the guardrails first (static policy, optional LLM judge, audit log).
+        A blocked call returns ExecutionResult(success=False, error_type="SecurityError") instead of
+        raising, so the agent's self-correction loop can rewrite the code.
 
         Args:
             code: Python code string to execute
             data_context: Dict of variables to inject (e.g., {"df": dataframe})
             capture_vars: Variable names to capture from execution namespace
+            step_id: Optional plan step id, recorded in the audit log
 
         Returns:
             ExecutionResult with output, figures, errors
         """
+        verdict = check_code(code, step_id=step_id)
+        if not verdict.allowed:
+            error_type = "SyntaxError" if verdict.kind == "syntax" else "SecurityError"
+            return ExecutionResult(
+                success=False,
+                error=verdict.reason if error_type == "SyntaxError" else f"Blocked by guardrails: {verdict.reason}",
+                error_type=error_type,
+                code_executed=code,
+            )
+
         if self.use_e2b:
             return self._execute_e2b(code, data_context)
         else:
@@ -130,33 +137,10 @@ class CodeExecutor:
     def validate_code(self, code: str) -> tuple[bool, str]:
         """
         Static analysis: check code for dangerous patterns before running.
-        Returns (is_safe, reason_if_unsafe)
+        Returns (is_safe, reason_if_unsafe). Pure check: no LLM call, no audit log entry.
         """
-        # Check for syntax errors first
-        try:
-            tree = ast.parse(code)
-        except SyntaxError as e:
-            return False, f"SyntaxError: {e}"
-
-        # Walk AST looking for dangerous patterns
-        for node in ast.walk(tree):
-            # Block dangerous imports
-            if isinstance(node, ast.Import):
-                for alias in node.names:
-                    base_module = alias.name.split(".")[0]
-                    if base_module in BLOCKED_IMPORTS:
-                        return False, f"Blocked import: '{alias.name}' is not allowed in sandbox"
-
-            if isinstance(node, ast.ImportFrom):
-                if node.module and node.module.split(".")[0] in BLOCKED_IMPORTS:
-                    return False, f"Blocked import: 'from {node.module}' is not allowed"
-
-            # Block direct exec/eval calls
-            if isinstance(node, ast.Call):
-                if isinstance(node.func, ast.Name) and node.func.id in {"exec", "eval", "compile"}:
-                    return False, f"Direct call to '{node.func.id}' is not allowed"
-
-        return True, ""
+        result = check_code_policy(code)
+        return result.allowed, result.reason
 
     def _execute_local(
         self,
@@ -171,14 +155,13 @@ class CodeExecutor:
         """
         t0 = time.time()
 
-        # Static validation
-
+        # Static validation (execute() already ran the full guardrails; this keeps direct callers safe too)
         is_safe, reason = self.validate_code(code)
         if not is_safe:
             return ExecutionResult(
                 success=False,
                 error=reason,
-                error_type="SecurityError",
+                error_type="SyntaxError" if reason.startswith("SyntaxError") else "SecurityError",
                 code_executed=code,
             )
 
@@ -218,7 +201,16 @@ class CodeExecutor:
 
         # Inject sklearn submodules directly
         try:
-            from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
+            from sklearn.cluster import KMeans
+            from sklearn.decomposition import PCA
+            from sklearn.ensemble import (
+                GradientBoostingClassifier,
+                GradientBoostingRegressor,
+                RandomForestClassifier,
+                RandomForestRegressor,
+            )
+            from sklearn.feature_selection import f_classif, mutual_info_classif, mutual_info_regression
+            from sklearn.inspection import permutation_importance
             from sklearn.linear_model import LinearRegression, LogisticRegression
             from sklearn.metrics import (
                 accuracy_score,
@@ -227,9 +219,10 @@ class CodeExecutor:
                 mean_squared_error,
                 r2_score,
             )
-            from sklearn.model_selection import train_test_split
+            from sklearn.model_selection import cross_val_score, train_test_split
             from sklearn.pipeline import Pipeline
             from sklearn.preprocessing import LabelEncoder, StandardScaler
+            from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
 
             namespace.update(
                 {
@@ -246,6 +239,17 @@ class CodeExecutor:
                     "confusion_matrix": confusion_matrix,
                     "mean_squared_error": mean_squared_error,
                     "r2_score": r2_score,
+                    "KMeans": KMeans,
+                    "PCA": PCA,
+                    "GradientBoostingClassifier": GradientBoostingClassifier,
+                    "GradientBoostingRegressor": GradientBoostingRegressor,
+                    "DecisionTreeClassifier": DecisionTreeClassifier,
+                    "DecisionTreeRegressor": DecisionTreeRegressor,
+                    "permutation_importance": permutation_importance,
+                    "mutual_info_classif": mutual_info_classif,
+                    "mutual_info_regression": mutual_info_regression,
+                    "f_classif": f_classif,
+                    "cross_val_score": cross_val_score,
                     "Pipeline": Pipeline,
                 }
             )
@@ -327,7 +331,7 @@ class CodeExecutor:
                 code_executed=code,
             )
 
-        except TimeoutError:
+        except (TimeoutError, SandboxTimeout):
             return ExecutionResult(
                 success=False,
                 error=f"Execution timed out after {self.timeout} seconds",
@@ -369,7 +373,6 @@ class CodeExecutor:
             "callable",
             "chr",
             "dict",
-            "dir",
             "divmod",
             "enumerate",
             "filter",
@@ -379,7 +382,6 @@ class CodeExecutor:
             "getattr",
             "hasattr",
             "hash",
-            "help",
             "hex",
             "id",
             "int",
@@ -409,7 +411,6 @@ class CodeExecutor:
             "super",
             "tuple",
             "type",
-            "vars",
             "zip",
             "True",
             "False",
@@ -418,28 +419,93 @@ class CodeExecutor:
         import builtins
 
         results = {name: getattr(builtins, name) for name in safe if hasattr(builtins, name)}
-        results["__import__"] = builtins.__import__
+        for exc_name in _SAFE_EXCEPTIONS:
+            results[exc_name] = getattr(builtins, exc_name)
+
+        # `vars`, `dir`, `help`, `eval`, `exec`, `compile`, `open`, `globals`, `locals` are deliberately absent.
+        # The remaining reflective builtins are replaced by guarded versions, and the import hook
+        # only lets allow-listed modules through (the static policy alone cannot see __import__('os')).
+        real_import = builtins.__import__
+
+        def guarded_import(name, globals=None, locals=None, fromlist=(), level=0):
+            if level != 0:
+                raise ImportError("Relative imports are not allowed in the sandbox")
+            if name.split(".")[0] not in ALLOWED_IMPORTS:
+                raise ImportError(f"Import of '{name}' is not allowed in the sandbox")
+            return real_import(name, globals, locals, fromlist, level)
+
+        def guarded_getattr(obj, name, *default):
+            if is_blocked_attr(name) or name.startswith("_"):
+                raise AttributeError(f"Access to attribute '{name}' is not allowed in the sandbox")
+            return getattr(obj, name, *default)
+
+        def guarded_hasattr(obj, name):
+            if is_blocked_attr(name) or name.startswith("_"):
+                return False
+            return hasattr(obj, name)
+
+        def guarded_setattr(obj, name, value):
+            if is_blocked_attr(name) or name.startswith("_"):
+                raise AttributeError(f"Access to attribute '{name}' is not allowed in the sandbox")
+            return setattr(obj, name, value)
+
+        results["__import__"] = guarded_import
+        results["getattr"] = guarded_getattr
+        results["hasattr"] = guarded_hasattr
+        results["setattr"] = guarded_setattr
 
         return results
 
     @contextlib.contextmanager
     def _timeout(self, seconds: int):
-        """Context manager for execution timeout using SIGALRM (Unix only)."""
+        """Context manager for execution timeout using SIGALRM (Unix only).
+
+        Uses an interval timer so the timeout keeps firing every second after the first expiry,
+        and raises SandboxTimeout (a BaseException) so `except Exception` in generated code
+        cannot swallow it.
+        """
 
         def handler(signum, frame):
-            raise TimeoutError(f"Execution exceeded {seconds}s limit")
+            raise SandboxTimeout(f"Execution exceeded {seconds}s limit")
+
+        # Only the *setup* is wrapped for AttributeError (platforms without SIGALRM, e.g. Windows).
+        # The body must stay outside it: an AttributeError raised by the generated code used to be
+        # caught here and re-yielded, surfacing as "RuntimeError: generator didn't stop after throw()".
+        timer_armed = False
+        old_trace = None
+        trace_armed = False
+        if threading.current_thread() is threading.main_thread():
+            try:
+                signal.signal(signal.SIGALRM, handler)
+                signal.setitimer(signal.ITIMER_REAL, seconds, 1.0)
+                timer_armed = True
+            except AttributeError:
+                logger.warning("SIGALRM unavailable on this platform - code runs without a time limit")
+        else:
+            # Signals only work in the main thread (e.g. a threadpool worker or test client).
+            # Fall back to a deadline checked on every line of the generated code. It cannot
+            # interrupt one long C call (a huge sort, say), but stops loops in generated Python.
+            deadline = time.monotonic() + seconds
+
+            def local_trace(frame, event, arg):
+                if time.monotonic() > deadline:
+                    raise SandboxTimeout(f"Execution exceeded {seconds}s limit")
+                return local_trace
+
+            def global_trace(frame, event, arg):
+                return local_trace if frame.f_code.co_filename == "<string>" else None
+
+            old_trace = sys.gettrace()
+            sys.settrace(global_trace)
+            trace_armed = True
 
         try:
-            signal.signal(signal.SIGALRM, handler)
-            signal.alarm(seconds)
-            yield
-        except AttributeError:
             yield
         finally:
-            try:
-                signal.alarm(0)
-            except AttributeError:
-                pass
+            if timer_armed:
+                signal.setitimer(signal.ITIMER_REAL, 0)
+            if trace_armed:
+                sys.settrace(old_trace)
 
     def _extract_error_line(self, traceback_str: str) -> Optional[int]:
         """Extract the line number from a traceback string."""

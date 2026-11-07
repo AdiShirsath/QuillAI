@@ -2,14 +2,14 @@ import json
 import logging
 import re
 import time
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_groq import ChatGroq
 
 from src.agent.models import AgentState, Step, StepResult, StepStatus, StepType
 from src.configs.settings import get_settings
 from src.tools.code_executor import CodeExecutor, ExecutionResult
+from src.tools.llm_factory import build_llm
 
 logger = logging.getLogger(__name__)
 
@@ -20,8 +20,8 @@ CODE_WRITER_SYSTEM = """You are an expert Python data scientist.
 Write clean, executable Python code to complete the given analysis step.
 
 RULES:
-1. Do NOT include any import statements — everything is pre-imported.
-2. The dataframe is available as 'df' if data was provided.
+1. Do NOT include any import statements — everything is pre-imported (only use modules & names listed in below).
+2. The dataframe is ALREADY LOADED as 'df'. Never read or write files (no read_csv, open, to_csv, savefig) — use df directly.
 3. Print key results explicitly: print(f"Result: {{value:.3f}}")
 4. Create clear, labeled matplotlib figures for visualizations. Never call plt.show().
 5. Add comments explaining what each section does.
@@ -32,6 +32,7 @@ RULES:
    print(f"Class distribution: {{y.value_counts().to_dict()}}`")
    assert y.nunique() >= 2, "Target must have at least 2 classes"
 10. Never call pd.get_dummies on 'df' directly. Use: df_encoded = pd.get_dummies(df.copy(), ...)
+11. Every code step runs in a FRESH Python process. Only 'df' and the pre-imported modules exist. Variables from earlier steps (models, X_test, y_train, results) do NOT exist, so recompute everything you need inside this step.
 
 PRE-AVAILABLE VARIABLES & MODULES:
 - Data         : df (main DataFrame)
@@ -42,7 +43,13 @@ PRE-AVAILABLE VARIABLES & MODULES:
                  RandomForestClassifier, RandomForestRegressor,
                  StandardScaler, LabelEncoder, Pipeline,
                  accuracy_score, classification_report,
-                 confusion_matrix, mean_squared_error, r2_score
+                 confusion_matrix, mean_squared_error, r2_score,
+                 GradientBoostingClassifier, GradientBoostingRegressor,
+                 DecisionTreeClassifier, DecisionTreeRegressor, KMeans, PCA,
+                 permutation_importance, mutual_info_classif, mutual_info_regression,
+                 f_classif, cross_val_score
+
+Important Note: Anything not listed above is NOT available (imports are stripped) — use only these names.
 
 CONTEXT:
 {context_summary}
@@ -68,7 +75,10 @@ IMPORTANT:
 - If KeyError: check available columns and use the correct ones
 - If AttributeError: check variable types
 - If the error is fundamental (wrong approach), rewrite from scratch
-- Keep the same goal, just fix the implementation"""
+- Keep the same goal, just fix the implementation
+- If the error is a NameError for a variable that this code never defines, it came from an earlier step. That variable does not exist here, so define it in this code.
+"""
+
 
 CODE_FIXER_HUMAN = """ORIGINAL CODE:
 ```python
@@ -151,11 +161,7 @@ class Executor:
         # get all settings and llm ready
         self.settings = get_settings()
 
-        self.llm = ChatGroq(
-            model=self.settings.executor_model,
-            temperature=0.1,  # Slight creativity for code writing
-            api_key=self.settings.groq_api_key,
-        )
+        self.llm = build_llm("executor", temperature=0.1)
 
         self.code_executor = CodeExecutor(
             timeout_seconds=30, use_e2b=bool(self.settings.e2b_api_key and not self.settings.use_local_sandbox)
@@ -242,12 +248,15 @@ class Executor:
         max_retries = self.settings.max_retries_per_step
         data_info = self._format_data_info(state.data_context, data_context)
 
-        # Step 1: Write initial code does not excute it
+        # Step 1: Write initial code does not execute it
         code = self._write_code(step, state, data_info)
+        original_code = code
 
         exec_result = None
         self_correction_applied = False
         correction_explanation = ""
+        corrections: List[Dict] = []
+        pending_fix: Optional[Dict] = None  # latest fix, waiting to see if it works
 
         # Self-correction retry loop
         for attempt in range(max_retries):
@@ -263,15 +272,20 @@ class Executor:
             exec_result = self.code_executor.execute(
                 code=code,
                 data_context=data_context,
+                step_id=step.step_id,
             )
 
             if exec_result.success:
+                if pending_fix is not None:
+                    pending_fix["verified"] = True  # the fix proposed last attempt actually ran
                 break  # Code worked!
 
             # Step 3: Self-correction
             if attempt < max_retries - 1:
                 logger.info(
-                    f"Step {step.step_id} attempt {attempt+1} failed " f"({exec_result.error_type}). Self-correcting..."
+                    f"Step {step.step_id} attempt {attempt+1} failed "
+                    f"({exec_result.error_type}). Self-correcting..."
+                    f"({exec_result.error_type}): {(exec_result.error or '')[:300]}. Self-correcting..."
                 )
                 fixed_code = self._fix_code(code, exec_result.error, data_info)
                 if fixed_code and fixed_code != code:
@@ -279,6 +293,15 @@ class Executor:
                         f"Fixed {exec_result.error_type} on attempt {attempt+1}: "
                         f"{exec_result.error[:100] if exec_result.error else 'unknown error'}"
                     )
+                    pending_fix = {
+                        "attempt": attempt + 1,
+                        "error_type": exec_result.error_type,
+                        "error": (exec_result.error or "")[:2000],
+                        "failed_code": code,
+                        "fixed_code": fixed_code,
+                        "verified": False,
+                    }
+                    corrections.append(pending_fix)
                     code = fixed_code
                     self_correction_applied = True
                 else:
@@ -306,6 +329,8 @@ class Executor:
                 confidence_score=interpretation_data.get("confidence_score", 0.7),
                 self_correction_applied=self_correction_applied,
                 correction_explanation=correction_explanation,
+                original_code=original_code,
+                corrections=corrections,
             )
         else:
             # All retries failed
@@ -319,6 +344,8 @@ class Executor:
                 error_type=exec_result.error_type if exec_result else "UnknownError",
                 self_correction_applied=self_correction_applied,
                 correction_explanation=correction_explanation,
+                original_code=original_code,
+                corrections=corrections,
             )
 
     def _write_code(self, step: Step, state: AgentState, data_info: str) -> str:

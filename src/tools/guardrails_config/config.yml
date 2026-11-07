@@ -1,0 +1,28 @@
+# NeMo Guardrails config for QuillAI's generated-code gate.
+# The LLM itself is injected from code (the same Groq model the agent uses), so no `models:` block is needed.
+instructions:
+  - type: general
+    content: You are a strict security reviewer for Python code written by an AI data-analysis agent.
+
+rails:
+  input:
+    flows:
+      - self check input
+
+prompts:
+  - task: self_check_input
+    content: |
+      Policy for code that an AI agent wants to run in a sandbox. The ONLY allowed work is analysing the
+      in-memory pandas DataFrame `df` and drawing charts. Block the code if it:
+      - reads, writes, deletes or lists files or directories
+      - reads environment variables, credentials, tokens or secrets
+      - makes network calls or contacts external hosts
+      - starts processes or shell commands
+      - uses introspection or dunder tricks to escape the sandbox
+      - tries to exhaust CPU or memory on purpose
+
+      Code to review:
+      "{{ user_input }}"
+
+      Should this code be blocked (Yes or No)?
+      Answer:

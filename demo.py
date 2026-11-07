@@ -60,9 +60,11 @@ async def run_demo():
     print("  🤖 AUTONOMOUS DATA ANALYSIS AGENT — LIVE DEMO")
     print("=" * 70)
 
-    # Check API key
-    if not os.getenv("GROQ_API_KEY"):
-        print("\n⚠️GROQ_API_KEY not set.")
+    # Check the key for the provider chosen in .env (LLM_PROVIDER = groq | mistral | gemini)
+    provider = os.getenv("LLM_PROVIDER", "groq").lower()
+    key_var = {"groq": "GROQ_API_KEY", "mistral": "MISTRAL_API_KEY", "gemini": "GEMINI_API_KEY"}.get(provider)
+    if not key_var or not os.getenv(key_var):
+        print(f"\n⚠️  LLM_PROVIDER={provider} but its API key ({key_var or 'unknown provider'}) is not set.")
         print("Copy .env.example → .env and add your key.")
         return
 
@@ -75,6 +77,10 @@ async def run_demo():
     print(f"   Dataset: {df.shape[0]} customers, {df.shape[1]} features")
     print(f"   Churn rate: {churn_rate:.1%}")
     print(f"   Columns: {list(df.columns)}\n")
+
+    from src.tools.llm_factory import active_model_name
+
+    print(f"🔌 Provider/model: {active_model_name()}\n")
 
     agent = DataAnalysisAgent()
 
@@ -102,14 +108,15 @@ async def run_demo():
             print("🧠 PLANNING...")
 
         elif etype == "planning_complete":
-            steps = data.get("steps", [])
-            print(f"📋 PLAN CREATED ({len(steps)} steps, complexity={data.get('complexity', '?')}):")
+            plan = data.get("plan", data)  # the event nests everything under "plan"
+            steps = plan.get("steps", [])
+            print(f"📋 PLAN CREATED ({len(steps)} steps, complexity={plan.get('complexity', '?')}):")
             for s in steps:
                 icon = {"think": "💭", "code": "💻", "analyze": "🔍", "validate": "✅", "summarize": "📝"}.get(
                     s["step_type"], "•"
                 )
                 print(f"   {icon} [{s['step_id']}] {s['title']}")
-            print(f"\n   Reasoning: {data.get('reasoning', '')[:150]}...")
+            print(f"\n   Reasoning: {plan.get('reasoning', '')[:150]}...")
             print()
 
         elif etype == "step_start":
@@ -142,8 +149,13 @@ async def run_demo():
                 code_preview = "\n".join(data["code_written"].split("\n")[:3])
                 print(f"      Code: {code_preview[:120]}...")
 
+            # Self-correction trail (what failed, and whether the fix actually ran)
+            for c in data.get("corrections") or []:
+                verdict = "fix worked" if c.get("verified") else "fix not confirmed"
+                print(f"      🔧 attempt {c.get('attempt')}: {c.get('error_type')} → {verdict}")
+
             if data.get("error"):
-                print(f"      ⚠️  Error: {data['error'][:100]}")
+                print(f"      ⚠️  Error ({data.get('error_type')}): {data['error'][:100]}")
             print()
 
         elif etype == "replan_start":
@@ -177,21 +189,11 @@ async def run_demo():
         elif etype == "error":
             print(f"\n❌ ERROR: {data.get('message', 'Unknown error')}")
 
-    # ── EVALUATION ────────────────────────────────────────────────────────────
-    print("\n" + "─" * 70)
-    print("📐 RUNNING EVALUATION...\n")
+    # ── USAGE ─────────────────────────────────────────────────────────────────
+    from src.tools.token_tracker import tracker
 
-    # For demo, we'll show what evaluation looks like
-    print("  (Evaluation requires completed FinalReport + AgentState objects)")
-    print("  In production: call AgentEvaluator.evaluate_task(report, state)")
-    print()
-    print("  Metrics that would be computed:")
-    print("  ├─ Task Completion Rate    (did it finish?)")
-    print("  ├─ Step Success Rate       (% steps that worked)")
-    print("  ├─ Self-Correction Success (did fixes work?)")
-    print("  ├─ Answer Quality Score    (LLM judge: 1-5)")
-    print("  ├─ Plan Quality Score      (was plan appropriate?)")
-    print("  └─ Answer Grounding        (is answer based on data?)")
+    print("\n" + "─" * 70)
+    print(f"📈 LLM usage: {tracker.summary()}")
 
 
 if __name__ == "__main__":

@@ -12,6 +12,7 @@ from src.agent.models import AgentState, AgentStatus, DataContext, FinalReport, 
 from src.agent.planner import Planner
 from src.configs.settings import get_settings
 from src.tools.memory_manager import EpisodicMemory, WorkingMemory
+from src.tools.token_tracker import tracker
 
 logger = logging.getLogger(__name__)
 
@@ -57,7 +58,10 @@ class DataAnalysisAgent:
         self.settings = get_settings()
         self.planner = Planner()
         self.executor = Executor()
-        self.episodic_memory = EpisodicMemory(persist_dir=self.settings.chroma_persist_dir)
+        self.episodic_memory = EpisodicMemory(
+            persist_dir=self.settings.chroma_persist_dir,
+            enabled=self.settings.enable_episodic_memory,
+        )
 
     # ─── PUBLIC API ───────────────────────────────────────────────────────────
 
@@ -258,6 +262,9 @@ class DataAnalysisAgent:
                     "code_output": result.code_output,
                     "latency_ms": result.latency_ms,
                     "error": result.error,
+                    "error_type": result.error_type,
+                    "original_code": result.original_code,
+                    "corrections": result.corrections,
                 },
             )
 
@@ -286,7 +293,8 @@ class DataAnalysisAgent:
                 revised_plan = self.planner.replan(state=state, reason=reason)
 
                 # Replace remaining steps with revised steps
-                state.plan.steps = state.plan.steps[: i + 1] + revised_plan.steps
+                if revised_plan.steps:  # an empty revision used to wipe every remaining step
+                    state.plan.steps = state.plan.steps[: i + 1] + revised_plan.steps
                 state.status = AgentStatus.EXECUTING
 
                 yield AgentEvent(
@@ -296,6 +304,9 @@ class DataAnalysisAgent:
                         "new_steps": len(revised_plan.steps),
                     },
                 )
+
+            # Log the total usage of llm
+            logger.info("Token usage so far: %s", tracker.summary())
 
             # ── STORE IN EPISODIC MEMORY (for successful code) ─────────────────
             if result.status == StepStatus.SUCCESS and result.code_written and result.confidence_score > 0.8:
